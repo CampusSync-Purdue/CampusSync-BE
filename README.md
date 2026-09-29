@@ -32,7 +32,7 @@ Create a local `.env` file from the template:
 cp .env.example .env
 ```
 
-Local development uses port `5001` because port `5000` may be used by AirTunes on macOS.
+Local development uses port `5050` because port `5000` may be used by AirTunes on macOS.
 
 ```env
 PORT=5050
