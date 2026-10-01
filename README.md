@@ -57,6 +57,10 @@ npm start
 
 `npm run build` compiles TypeScript from `src/` into `dist/`. `npm start` runs the compiled application.
 
+## Request logs
+
+Each API request is appended to `logs/application.log` as a JSON line. The logger records only the timestamp, HTTP method, route path, status code, and duration. Unhandled errors are also logged with error details and a stack trace, while the client receives a safe generic error message. Passwords, authorization headers, JWTs, and request bodies are deliberately excluded. The `logs/` directory is ignored by Git.
+
 ## Health endpoint
 
 Confirm the backend is running from a second terminal:
