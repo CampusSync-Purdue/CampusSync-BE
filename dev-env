@@ -1,0 +1,38 @@
+#!/usr/bin/env sh
+
+# Local development environment command.
+set -eu
+
+cd "$(dirname "$0")"
+
+usage() {
+  echo "Usage: ./dev-env postgres [up]"
+  echo ""
+  echo "  ./dev-env postgres      Build the PostgreSQL image."
+  echo "  ./dev-env postgres up   Start PostgreSQL without building, then list its tables."
+}
+
+if [ "${1:-}" != "postgres" ] || [ "$#" -gt 2 ]; then
+  usage >&2
+  exit 1
+fi
+
+if [ ! -f .env ]; then
+  echo "Missing .env. Create it from .env.example and set its local values before continuing." >&2
+  exit 1
+fi
+
+case "${2:-}" in
+  '')
+    docker compose build postgres
+    ;;
+  up)
+    docker compose up -d --no-build --wait postgres
+    echo "\nInitial database tables:"
+    docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\dt"'
+    ;;
+  *)
+    usage >&2
+    exit 1
+    ;;
+esac
