@@ -40,6 +40,70 @@ PORT=5050
 
 Never commit `.env`; it may later contain database credentials and other secrets. Commit changes to `.env.example` when a new variable is required.
 
+## Local PostgreSQL database
+
+This project runs PostgreSQL 16 in Docker.
+
+### Start the database
+
+1. Create `.env` from the template and set the `POSTGRES_*` values.
+
+```bash
+cp .env.example .env
+```
+
+2. Build the database image once, then start it:
+
+```bash
+./dev-env postgres      # Build the PostgreSQL image
+./dev-env postgres up   # Start PostgreSQL and list its tables
+```
+
+`./dev-env postgres up` does not build an image. It starts the existing local
+container and waits until PostgreSQL is healthy. If `.env` is missing, the
+command stops without creating or changing files.
+
+### Database initialization
+
+On the first start of a new Docker volume, PostgreSQL automatically runs
+`database/init/001_initial_schema.sql`. It creates `users`, `rooms`, and
+`reservations`, including the constraint that prevents overlapping active room
+reservations. Initialization scripts do not run again for an existing volume.
+The initialization directory is mounted into the development container, so
+changes to these SQL files do not require rebuilding the Docker image.
+The schema uses `IF NOT EXISTS`, so running the script manually does not try to
+create tables or indexes that already exist; it does not apply schema changes
+to existing tables.
+
+To reset local database data and run initialization again:
+
+```bash
+docker compose down -v
+./dev-env postgres up
+```
+
+This permanently deletes local database data.
+
+### Connect to PostgreSQL
+
+From your machine:
+
+```bash
+docker compose exec postgres psql -U campussync_app -d campussync
+```
+
+Use this connection string from the backend when it runs on your machine:
+
+```text
+postgresql://campussync_app:your-password@localhost:5432/campussync
+```
+
+Containers on `campussync_network` use the Docker service hostname:
+
+```text
+postgresql://campussync_app:your-password@postgres:5432/campussync
+```
+
 ## Run the API
 
 Start the development server:
@@ -56,6 +120,10 @@ npm start
 ```
 
 `npm run build` compiles TypeScript from `src/` into `dist/`. `npm start` runs the compiled application.
+
+## Request logs
+
+Each API request is appended to `logs/application.log` as a JSON line. The logger records only the timestamp, HTTP method, route path, status code, and duration. Unhandled errors are also logged with error details and a stack trace, while the client receives a safe generic error message. Passwords, authorization headers, JWTs, and request bodies are deliberately excluded. The `logs/` directory is ignored by Git.
 
 ## Health endpoint
 
