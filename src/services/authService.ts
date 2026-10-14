@@ -8,6 +8,7 @@ const users: User[] = [
     email: 'student@pfw.edu',
     name: 'John doe',
     passwordHash: bcrypt.hashSync('123456', 12),
+    role: 'user',
   },
 ]
 
