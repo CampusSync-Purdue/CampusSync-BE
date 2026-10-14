@@ -1,8 +1,11 @@
+import type { UserRole } from './user.js'
+
 export interface User {
   id: string
   email: string
   name: string
   passwordHash: string
+  role: UserRole
 }
 
 export type PublicUser = Omit<User, 'passwordHash'>
@@ -16,6 +19,7 @@ export interface AuthTokenPayload {
   id: string
   email: string
   name: string
+  role: UserRole
 }
 
 export interface AuthResponse {

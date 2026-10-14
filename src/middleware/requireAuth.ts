@@ -8,7 +8,8 @@ function isAuthTokenPayload(payload: JwtPayload | string): payload is AuthTokenP
     typeof payload !== 'string' &&
     typeof payload.id === 'string' &&
     typeof payload.email === 'string' &&
-    typeof payload.name === 'string'
+    typeof payload.name === 'string' &&
+    (payload.role === 'user' || payload.role === 'admin')
   )
 }
 
