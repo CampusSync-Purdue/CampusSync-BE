@@ -104,6 +104,43 @@ Containers on `campussync_network` use the Docker service hostname:
 postgresql://campussync_app:your-password@postgres:5432/campussync
 ```
 
+## Bootstrap the first administrator
+
+CampusSync provides a repeatable environment-driven script for creating the
+first administrator account.
+
+Before running the bootstrap, make sure PostgreSQL is running and configure
+these variables in your local `.env` file:
+
+```env
+ADMIN_NAME=replace-with-admin-name
+ADMIN_EMAIL=replace-with-admin-email
+ADMIN_PASSWORD=replace-with-a-strong-admin-password
+```
+
+Do not commit `.env` or put real credentials in `.env.example`.
+
+To create the first administrator, run:
+
+```bash
+npm run bootstrap-admin
+```
+
+The script checks whether an administrator already exists. If one does not
+exist, it creates the administrator using the supplied environment variables
+and stores a bcrypt password hash. If an administrator already exists, the
+script leaves the existing account unchanged.
+
+For local PostgreSQL, start the database before running the bootstrap:
+
+```bash
+docker compose up -d --no-build --wait postgres
+npm run bootstrap-admin
+```
+
+The bootstrap command is safe to run again after an administrator has already
+been created.
+
 ## Run the API
 
 Start the development server:
