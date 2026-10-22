@@ -98,3 +98,52 @@ export async function findReservationById(
 
   return result.rows[0] ? toReservationWithRoom(result.rows[0]) : undefined
 }
+
+/**
+ * Every reservation with its room, newest first.
+ *
+ * Provisional: US-15 (CSYNC-24) owns the administrator reservation view and
+ * will want filtering and paging. This exists so the administrator
+ * cancellation action (US-16) has something to act on.
+ */
+export async function findAllReservations(): Promise<ReservationWithRoom[]> {
+  const result = await pool.query<ReservationRow>(
+    `SELECT ${RESERVATION_COLUMNS}
+       FROM reservations
+       JOIN rooms ON rooms.id = reservations.room_id
+      ORDER BY reservations.start_time DESC`,
+  )
+
+  return result.rows.map(toReservationWithRoom)
+}
+
+/**
+ * Marks a reservation cancelled and returns it.
+ *
+ * The row is kept, not deleted, so the booking stays in the user's history
+ * (US-16). `status = 'active'` in the WHERE clause makes this a no-op on a
+ * reservation that is already cancelled, so two concurrent cancellations
+ * cannot both report success; the caller reads `undefined` and reports a
+ * conflict.
+ *
+ * Because the exclusion constraint only covers active rows, cancelling frees
+ * the time range for a new booking immediately.
+ */
+export async function cancelReservationById(
+  reservationId: string,
+): Promise<ReservationWithRoom | undefined> {
+  const updated = await pool.query<{ id: string }>(
+    `UPDATE reservations
+        SET status = 'cancelled', updated_at = now()
+      WHERE id = $1
+        AND status = 'active'
+      RETURNING id`,
+    [reservationId],
+  )
+
+  if (updated.rowCount === 0) {
+    return undefined
+  }
+
+  return findReservationById(reservationId)
+}
