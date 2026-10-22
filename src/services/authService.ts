@@ -1,23 +1,23 @@
-import bcrypt from 'bcryptjs'
 import type { PublicUser, User } from '../types/index.js'
+import {
+  findUserByEmail as findStoredUserByEmail,
+  findUserById as findStoredUserById,
+} from '../repositories/userRepository.js'
 
-// Demo-only data. Replace this with a database repository in production.
-const users: User[] = [
-  {
-    id: 'user-1',
-    email: 'student@pfw.edu',
-    name: 'John doe',
-    passwordHash: bcrypt.hashSync('123456', 12),
-    role: 'user',
-  },
-]
-
-export function findUserByEmail(email: string): User | undefined {
-  return users.find((user) => user.email.toLowerCase() === email.toLowerCase())
+/**
+ * Sign-in lookups.
+ *
+ * These delegate to the user repository so that sign-in reads the same table
+ * registration writes to. They used to read a hardcoded demo array, which
+ * meant a registered user could never sign in, and neither could the
+ * administrator created by `npm run bootstrap-admin`.
+ */
+export async function findUserByEmail(email: string): Promise<User | undefined> {
+  return findStoredUserByEmail(email)
 }
 
-export function findUserById(id: string): User | undefined {
-  return users.find((user) => user.id === id)
+export async function findUserById(id: string): Promise<User | undefined> {
+  return findStoredUserById(id)
 }
 
 export function toPublicUser({ passwordHash: _passwordHash, ...user }: User): PublicUser {
