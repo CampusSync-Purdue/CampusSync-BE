@@ -197,6 +197,13 @@ describe('GET /api/rooms/availability', { skip: !databaseReachable }, () => {
     assert.ok(response.body.errors.date)
   })
 
+  it('rejects a window longer than a reservation may run', async () => {
+    const response = await search({ date: DATE, startTime: '09:00', endTime: '17:00' })
+
+    assert.equal(response.status, 400)
+    assert.match(response.body.errors.endTime, /longer than/)
+  })
+
   it('rejects an end time that is not after the start time', async () => {
     const response = await search({ date: DATE, startTime: '16:00', endTime: '14:00' })
 
