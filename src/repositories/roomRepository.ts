@@ -1,5 +1,6 @@
 import { pool } from '../config/database.js'
 import type { OperatingHours, RoomSummary } from '../types/room.js'
+import type { NewRoomInput } from '../validation/roomValidation.js'
 
 /**
  * Database access for rooms. This is the only module that knows how rooms are
@@ -88,4 +89,29 @@ export async function findRoomsFreeBetween(
   )
 
   return result.rows.map(toRoomSummary)
+}
+
+/**
+ * Creates a room and returns it.
+ *
+ * `is_active` is not a parameter: a newly created room is always active, so
+ * it reaches the catalog and the availability search straight away (US-13).
+ */
+export async function insertRoom(room: NewRoomInput): Promise<RoomSummary> {
+  const result = await pool.query<RoomRow>(
+    `INSERT INTO rooms
+       (name, location, capacity, description, amenities, availability_hours, is_active)
+     VALUES ($1, $2, $3, $4, $5, $6::jsonb, TRUE)
+     RETURNING ${ROOM_COLUMNS}`,
+    [
+      room.name,
+      room.location,
+      room.capacity,
+      room.description,
+      room.amenities,
+      JSON.stringify(room.availabilityHours),
+    ],
+  )
+
+  return toRoomSummary(result.rows[0])
 }

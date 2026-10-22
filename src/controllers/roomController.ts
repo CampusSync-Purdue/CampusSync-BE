@@ -1,17 +1,60 @@
 import type { Request, Response } from 'express'
 import {
   HTTP_STATUS_BAD_REQUEST,
+  HTTP_STATUS_CREATED,
   HTTP_STATUS_INTERNAL_SERVER_ERROR,
   HTTP_STATUS_OK,
 } from '../constants/httpStatus.js'
-import { getActiveRooms } from '../services/roomService.js'
+import { createRoom, getActiveRooms } from '../services/roomService.js'
+import { validateNewRoom } from '../validation/roomValidation.js'
 import { findAvailableRooms } from '../services/availabilityService.js'
 import { validateAvailabilityQuery } from '../validation/availabilityValidation.js'
 
-export function getRooms(_request: Request, response: Response) {
-  const rooms = getActiveRooms()
+export async function getRooms(_request: Request, response: Response) {
+  try {
+    response.status(HTTP_STATUS_OK).json(await getActiveRooms())
+  } catch (error) {
+    console.error('Failed to load rooms', error)
 
-  response.status(HTTP_STATUS_OK).json(rooms)
+    response.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).json({
+      message: 'Unable to load rooms right now. Please try again.',
+    })
+  }
+}
+
+/**
+ * POST /api/rooms
+ *
+ * Creates a room. Administrators only, enforced by requireRole on the route.
+ * The new room is active, so it appears in the catalog and the availability
+ * search immediately (US-13).
+ */
+export async function postRoom(request: Request, response: Response) {
+  const validation = validateNewRoom(request.body)
+
+  if (!validation.valid) {
+    response.status(HTTP_STATUS_BAD_REQUEST).json({
+      message: 'Please correct the highlighted fields.',
+      errors: validation.errors,
+    })
+
+    return
+  }
+
+  try {
+    const room = await createRoom(validation.value)
+
+    response.status(HTTP_STATUS_CREATED).json({
+      message: 'The room has been created.',
+      room,
+    })
+  } catch (error) {
+    console.error('Failed to create room', error)
+
+    response.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).json({
+      message: 'Unable to create the room right now. Please try again.',
+    })
+  }
 }
 
 /**
