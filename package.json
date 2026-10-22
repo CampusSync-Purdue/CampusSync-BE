@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "bootstrap-admin": "tsx scripts/bootstrap-admin.ts",
-    "test": "node --import tsx --test \"src/**/*.test.ts\""
+    "test": "node --env-file-if-exists=.env --import ./scripts/testEnv.mjs --import tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
     "bcrypt": "6.0.0",
@@ -28,6 +28,8 @@
     "@types/luxon": "^3.7.6",
     "@types/node": "26.6.3",
     "@types/pg": "^8.23.1",
+    "@types/supertest": "^7.2.1",
+    "supertest": "^7.3.1",
     "tsx": "4.23.15",
     "typescript": "7.0.2"
   }
