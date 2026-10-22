@@ -24,13 +24,19 @@ export function testTag(prefix: string): string {
   return `${prefix}-${process.pid}-${Date.now()}`
 }
 
-/** Inserts a user that reservations can reference, and returns its id. */
-export async function insertTestUser(tag: string): Promise<string> {
+/**
+ * Inserts a user that reservations can reference, and returns its id.
+ * `suffix` distinguishes several users within one run.
+ */
+export async function insertTestUser(
+  tag: string,
+  suffix = '',
+): Promise<string> {
   const result = await pool.query<{ id: string }>(
     `INSERT INTO users (name, email, password_hash, role)
      VALUES ($1, $2, 'not-a-real-hash', $3)
      RETURNING id`,
-    [`Test User ${tag}`, `${tag}@example.test`, 'user'],
+    [`Test User ${tag}${suffix}`, `${tag}${suffix}@example.test`, 'user'],
   )
 
   return result.rows[0].id
@@ -87,15 +93,17 @@ export async function insertTestReservation(reservation: {
 }
 
 /**
- * Removes everything this run created. Rooms are tagged by `location`, and
- * reservations and users fall away with them.
+ * Removes everything this run created. Rooms are tagged by `location` and
+ * users by an email built from the same tag, so one run never disturbs
+ * another's rows.
  */
 export async function cleanUpTestData(tag: string): Promise<void> {
   await pool.query(
     `DELETE FROM reservations
-      WHERE room_id IN (SELECT id FROM rooms WHERE location = $1)`,
-    [tag],
+      WHERE room_id IN (SELECT id FROM rooms WHERE location = $1)
+         OR user_id IN (SELECT id FROM users WHERE email LIKE $2)`,
+    [tag, `${tag}%@example.test`],
   )
   await pool.query('DELETE FROM rooms WHERE location = $1', [tag])
-  await pool.query('DELETE FROM users WHERE email = $1', [`${tag}@example.test`])
+  await pool.query('DELETE FROM users WHERE email LIKE $1', [`${tag}%@example.test`])
 }
