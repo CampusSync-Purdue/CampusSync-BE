@@ -1,4 +1,5 @@
 import { campusLocalToUtc } from '../utils/dateTime.js'
+import { validateReservationDuration } from './reservationDuration.js'
 
 /**
  * Validation for the availability search (CSYNC-15 / US-06).
@@ -115,6 +116,15 @@ export function validateAvailabilityQuery(
       error instanceof Error ? error.message : 'That time is not valid on this date.'
 
     return { valid: false, errors: { startTime: message } }
+  }
+
+  // The duration limit is checked here, against the instants rather than the
+  // wall clock, so a window longer than a reservation may run is rejected
+  // before any rooms are offered for it (US-10).
+  const duration = validateReservationDuration(startUtc, endUtc)
+
+  if (!duration.valid) {
+    return { valid: false, errors: { endTime: duration.message } }
   }
 
   return {
