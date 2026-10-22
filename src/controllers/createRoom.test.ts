@@ -46,7 +46,7 @@ describe('POST /api/rooms', { skip: !databaseReachable }, () => {
     await pool.end()
   })
 
-  function post(payload: unknown, token?: string) {
+  function post(payload: object, token?: string) {
     const pending = request(app).post('/api/rooms').send(payload)
 
     return token ? pending.set('authorization', `Bearer ${token}`) : pending
