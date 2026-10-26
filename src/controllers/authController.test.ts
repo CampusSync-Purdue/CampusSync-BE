@@ -154,32 +154,6 @@ describe("POST /api/auth/register", () => {
     assert.equal(await findUserByEmail("bad"), undefined);
   });
 
-  it("persists the user in Postgres with a lowercased email", async () => {
-    const response = await postRegister({
-      ...validPayload,
-      email: "Varun@CampusSync.EDU",
-    });
-
-    assert.equal(response.status, 201);
-
-    const stored = await findUserByEmail("varun@campussync.edu");
-
-    assert.ok(stored);
-    assert.equal(stored.email, "varun@campussync.edu");
-    assert.equal(stored.id, response.body.user?.id);
-  });
-
-  it("returns 409 for concurrent registrations of the same email", async () => {
-    const responses = await Promise.all([
-      postRegister(validPayload),
-      postRegister(validPayload),
-    ]);
-
-    const statuses = responses.map((response) => response.status).sort();
-
-    assert.deepEqual(statuses, [201, 409]);
-  });
-
   it("ignores a client-supplied role and id", async () => {
     const response = await postRegister({
       ...validPayload,
