@@ -16,6 +16,16 @@ import {
  */
 export const PASSWORD_SALT_ROUNDS = 12;
 
+/** True for PostgreSQL's unique-violation error. */
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "23505"
+  );
+}
+
 export class EmailAlreadyRegisteredError extends Error {
   constructor() {
     super("An account with this email address already exists.");
@@ -32,18 +42,29 @@ export class EmailAlreadyRegisteredError extends Error {
 export async function registerUser(
   input: RegisterUserInput,
 ): Promise<PublicUser> {
-  if (findUserByEmail(input.email)) {
+  if (await findUserByEmail(input.email)) {
     throw new EmailAlreadyRegisteredError();
   }
 
   const passwordHash = await bcrypt.hash(input.password, PASSWORD_SALT_ROUNDS);
 
-  const user = insertUser({
-    name: input.name,
-    email: input.email,
-    passwordHash,
-    role: DEFAULT_USER_ROLE,
-  });
+  try {
+    const user = await insertUser({
+      name: input.name,
+      email: input.email,
+      passwordHash,
+      role: DEFAULT_USER_ROLE,
+    });
 
-  return toPublicUser(user);
+    return toPublicUser(user);
+  } catch (error) {
+    // The check above cannot stop two simultaneous registrations, so the
+    // unique index on lower(email) is the real guard. 23505 is PostgreSQL's
+    // unique-violation code.
+    if (isUniqueViolation(error)) {
+      throw new EmailAlreadyRegisteredError();
+    }
+
+    throw error;
+  }
 }
