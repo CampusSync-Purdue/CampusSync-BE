@@ -91,6 +91,23 @@ describe('validateAvailabilityQuery', () => {
     )
   })
 
+  it('rejects a window longer than a reservation may run', () => {
+    // 09:00 to 17:00 is eight hours, well over the three-hour limit.
+    assert.ok(
+      errorsFor({ date: '2026-10-21', startTime: '09:00', endTime: '17:00' }).endTime,
+    )
+  })
+
+  it('accepts a window exactly at the duration limit', () => {
+    const result = validateAvailabilityQuery({
+      date: '2026-10-21',
+      startTime: '14:00',
+      endTime: '17:00',
+    })
+
+    assert.equal(result.valid, true)
+  })
+
   it('rejects an ambiguous local time that occurs twice when clocks move back', () => {
     // 2026-11-01 01:30 happens twice during the fall-back transition.
     assert.ok(
