@@ -3,7 +3,14 @@ import type { AddressInfo } from "node:net";
 import { after, afterEach, before, describe, it } from "node:test";
 import bcrypt from "bcrypt";
 import app from "../app.js";
-import { clearUsers, findUserByEmail } from "../repositories/userRepository.js";
+import { pool } from "../config/database.js";
+import {
+  deleteUserByEmail,
+  findUserByEmail,
+} from "../repositories/userRepository.js";
+import { isDatabaseReachable } from "../test/database.js";
+
+const databaseReachable = await isDatabaseReachable();
 
 type RegisterResponse = {
   status: number;
@@ -19,6 +26,10 @@ let baseUrl = "";
 let server: ReturnType<typeof app.listen>;
 
 before(async () => {
+  if (!databaseReachable) {
+    return;
+  }
+
   await new Promise<void>((resolve) => {
     server = app.listen(0, () => resolve());
   });
@@ -28,13 +39,18 @@ before(async () => {
 });
 
 after(async () => {
-  await new Promise<void>((resolve, reject) => {
-    server.close((error) => (error ? reject(error) : resolve()));
-  });
+  if (server) {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
+
+  await pool.end();
 });
 
-afterEach(() => {
-  clearUsers();
+afterEach(async () => {
+  // Registration now writes to the database, so each case clears its own row.
+  await deleteUserByEmail(validPayload.email);
 });
 
 async function postRegister(payload: unknown): Promise<RegisterResponse> {
@@ -55,17 +71,17 @@ async function postRegister(payload: unknown): Promise<RegisterResponse> {
 
 const validPayload = {
   name: "Varun Teja",
-  email: "varun@campussync.edu",
+  email: `varun+${process.pid}@campussync.edu`,
   password: "Password1",
 };
 
-describe("POST /api/auth/register", () => {
+describe("POST /api/auth/register", { skip: !databaseReachable }, () => {
   it("creates an account and returns 201", async () => {
     const response = await postRegister(validPayload);
 
     assert.equal(response.status, 201);
     assert.equal(response.body.user?.name, "Varun Teja");
-    assert.equal(response.body.user?.email, "varun@campussync.edu");
+    assert.equal(response.body.user?.email, validPayload.email);
     assert.ok(response.body.message);
   });
 
@@ -103,7 +119,7 @@ describe("POST /api/auth/register", () => {
   it("stores a bcrypt hash rather than the plaintext password", async () => {
     await postRegister(validPayload);
 
-    const stored = findUserByEmail(validPayload.email);
+    const stored = await findUserByEmail(validPayload.email);
 
     assert.ok(stored, "user should have been stored");
     assert.notEqual(stored.passwordHash, validPayload.password);
@@ -128,7 +144,7 @@ describe("POST /api/auth/register", () => {
 
     const response = await postRegister({
       ...validPayload,
-      email: "VARUN@CampusSync.EDU",
+      email: validPayload.email.toUpperCase(),
     });
 
     assert.equal(response.status, 409);
@@ -168,7 +184,7 @@ describe("POST /api/auth/register", () => {
   it("does not store a user when validation fails", async () => {
     await postRegister({ name: "", email: "bad", password: "x" });
 
-    assert.equal(findUserByEmail("bad"), undefined);
+    assert.equal(await findUserByEmail("bad"), undefined);
   });
 
   it("ignores a client-supplied role and id", async () => {
