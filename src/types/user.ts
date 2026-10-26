@@ -1,17 +1,12 @@
-export type UserRole = "user" | "admin";
+import type { UserRecord, UserRole } from "../db/schema.js";
+
+export type { UserRole } from "../db/schema.js";
 
 /**
  * A user as it is stored. `passwordHash` must never leave the backend:
  * use `PublicUser` for anything that is sent in a response.
  */
-export type User = {
-  id: string;
-  name: string;
-  email: string;
-  passwordHash: string;
-  role: UserRole;
-  createdAt: string;
-};
+export type User = UserRecord;
 
 /** The user shape that is safe to return in an API response. */
 export type PublicUser = Omit<User, "passwordHash">;
@@ -25,7 +20,7 @@ export type RegisterUserInput = {
 export const DEFAULT_USER_ROLE: UserRole = "user";
 
 export function toPublicUser(user: User): PublicUser {
-  const { passwordHash, ...publicUser } = user;
+  const { passwordHash: _passwordHash, ...publicUser } = user;
 
   return publicUser;
 }

@@ -13,9 +13,6 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      # Keep initialization SQL current during local development without
-      # requiring a Docker image rebuild after a schema change.
-      - ./database/init:/docker-entrypoint-initdb.d:ro
     networks:
       - campussync_network
     healthcheck:

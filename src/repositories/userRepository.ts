@@ -1,38 +1,53 @@
-import { randomUUID } from "node:crypto";
-import type { User } from "../types/user.js";
+import { eq, sql } from "drizzle-orm";
+import { db } from "../db/index.js";
+import { users } from "../db/schema.js";
+import type { User, UserRole } from "../types/user.js";
+import { isUuid } from "../validation/uuid.js";
 import { normalizeEmail } from "../validation/registerValidation.js";
 
 /**
- * In-memory user store. This is the only module that knows how users are
- * persisted, so replacing it with a real database table means changing this
- * file alone: the service and controller above it stay as they are.
- *
- * Data does not survive a restart.
+ * Postgres-backed user store. This is the only module that knows how users
+ * are persisted; services and controllers depend on these functions only.
  */
-const users: User[] = [];
 
-export type NewUserRecord = Omit<User, "id" | "createdAt">;
+export type NewUser = {
+  name: string;
+  email: string;
+  passwordHash: string;
+  role: UserRole;
+};
 
-export function findUserByEmail(email: string): User | undefined {
-  const normalizedEmail = normalizeEmail(email);
-
-  return users.find((user) => user.email === normalizedEmail);
-}
-
-export function insertUser(record: NewUserRecord): User {
-  const user: User = {
-    ...record,
-    email: normalizeEmail(record.email),
-    id: randomUUID(),
-    createdAt: new Date().toISOString(),
-  };
-
-  users.push(user);
+export async function findUserByEmail(email: string): Promise<User | undefined> {
+  // Matches the lower(email) unique index, so the lookup is case-insensitive.
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(sql`lower(${users.email})`, normalizeEmail(email)))
+    .limit(1);
 
   return user;
 }
 
-/** Test helper: drops every stored user so cases start from a clean store. */
-export function clearUsers(): void {
-  users.length = 0;
+export async function findUserById(id: string): Promise<User | undefined> {
+  // Tokens issued before the move to Postgres carry non-UUID ids; treat them
+  // as unknown users rather than letting Postgres raise a cast error.
+  if (!isUuid(id)) {
+    return undefined;
+  }
+
+  const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+
+  return user;
+}
+
+/**
+ * @throws the driver error (SQLSTATE 23505) when the email is already taken.
+ */
+export async function insertUser(record: NewUser): Promise<User> {
+  const [user] = await db
+    .insert(users)
+    .values({ ...record, email: normalizeEmail(record.email) })
+    .returning();
+
+  return user;
 }
