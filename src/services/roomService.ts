@@ -1,32 +1,20 @@
-import type { Room } from "../types/room.js";
+import { findActiveRooms, insertRoom } from '../repositories/roomRepository.js'
+import type { RoomSummary } from '../types/room.js'
+import type { NewRoomInput } from '../validation/roomValidation.js'
 
-const rooms: Room[] = [
-  {
-    id: "room-101",
-    name: "Study Room 101",
-    location: "Library",
-    capacity: 8,
-    amenities: ["WiFi", "Whiteboard"],
-    active: true,
-  },
-  {
-    id: "room-202",
-    name: "Conference Room A",
-    location: "Science Hall",
-    capacity: 12,
-    amenities: ["WiFi", "Projector", "Whiteboard"],
-    active: true,
-  },
-  {
-    id: "room-303",
-    name: "Study Room 303",
-    location: "Engineering Building",
-    capacity: 6,
-    amenities: ["WiFi"],
-    active: false,
-  },
-];
+/**
+ * Room catalog and creation.
+ *
+ * The catalog reads from the database rather than the in-memory list it
+ * started as, because US-13 requires a newly created room to appear in it.
+ * This is the change CSYNC-43 describes; it had to happen here for a created
+ * room to be visible at all.
+ */
+export async function getActiveRooms(): Promise<RoomSummary[]> {
+  return findActiveRooms()
+}
 
-export function getActiveRooms(): Omit<Room, "active">[] {
-  return rooms.filter((room) => room.active).map(({ active, ...room }) => room);
+/** Creates a room. It is active immediately. */
+export async function createRoom(input: NewRoomInput): Promise<RoomSummary> {
+  return insertRoom(input)
 }
