@@ -11,6 +11,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:studio": "drizzle-kit studio",
+    "seed-rooms": "tsx scripts/seed-rooms.ts",
     "test": "node --import tsx --import ./scripts/test-env.ts --test --test-concurrency=1 \"src/**/*.test.ts\""
   },
   "dependencies": {
