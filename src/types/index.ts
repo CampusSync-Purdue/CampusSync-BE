@@ -1,14 +1,6 @@
-import type { UserRole } from './user.js'
+import type { PublicUser, UserRole } from './user.js'
 
-export interface User {
-  id: string
-  email: string
-  name: string
-  passwordHash: string
-  role: UserRole
-}
-
-export type PublicUser = Omit<User, 'passwordHash'>
+export type { PublicUser, User, UserRole } from './user.js'
 
 export interface LoginCredentials {
   email: string

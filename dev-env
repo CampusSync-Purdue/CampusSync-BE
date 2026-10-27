@@ -5,11 +5,28 @@ set -eu
 
 cd "$(dirname "$0")"
 
+TEST_DATABASE_NAME="campussync_test"
+
 usage() {
-  echo "Usage: ./dev-env postgres [up]"
+  echo "Usage: ./dev-env postgres [up|connect|test-db]"
   echo ""
-  echo "  ./dev-env postgres      Build the PostgreSQL image."
-  echo "  ./dev-env postgres up   Start PostgreSQL without building, then list its tables."
+  echo "  ./dev-env postgres          Build the PostgreSQL image."
+  echo "  ./dev-env postgres up       Start PostgreSQL without building, apply migrations, then list its tables."
+  echo "  ./dev-env postgres connect  Open an interactive psql shell in the running database."
+  echo "  ./dev-env postgres test-db  Create the ${TEST_DATABASE_NAME} database used by npm test, if it is missing."
+}
+
+# Runs SQL from stdin as the container's own superuser, so no credentials from
+# .env are echoed or passed on the command line.
+psql_in_container() {
+  docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -tAq'
+}
+
+require_running() {
+  if [ -z "$(docker compose ps --status running -q postgres)" ]; then
+    echo "PostgreSQL is not running. Start it with: ./dev-env postgres up" >&2
+    exit 1
+  fi
 }
 
 if [ "${1:-}" != "postgres" ] || [ "$#" -gt 2 ]; then
@@ -28,8 +45,28 @@ case "${2:-}" in
     ;;
   up)
     docker compose up -d --no-build --wait postgres
-    echo "\nInitial database tables:"
+    echo "\nApplying database migrations:"
+    npm run --silent db:migrate
+    echo "\nDatabase tables:"
     docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\dt"'
+    ;;
+  connect)
+    # Interactive session (no -T) so psql gets a TTY. Credentials come from the
+    # container's own environment, so nothing from .env is echoed here.
+    require_running
+    echo "Connecting to PostgreSQL. Try \\dt to list tables, SELECT * FROM <table>; to view rows, \\q to quit."
+    docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+    ;;
+  test-db)
+    require_running
+    exists=$(echo "SELECT 1 FROM pg_database WHERE datname = '${TEST_DATABASE_NAME}';" | psql_in_container)
+    if [ "$exists" = "1" ]; then
+      echo "Test database ${TEST_DATABASE_NAME} already exists."
+    else
+      echo "CREATE DATABASE ${TEST_DATABASE_NAME};" | psql_in_container
+      echo "Created test database ${TEST_DATABASE_NAME}."
+    fi
+    echo "Set TEST_DATABASE_URL in .env to point at it. npm test applies migrations automatically."
     ;;
   *)
     usage >&2
