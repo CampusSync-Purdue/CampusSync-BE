@@ -30,3 +30,16 @@ const rooms: Room[] = [
 export function getActiveRooms(): Omit<Room, "active">[] {
   return rooms.filter((room) => room.active).map(({ active, ...room }) => room);
 }
+
+export function getActiveRoomById(
+  roomId: string,
+): Omit<Room, "active"> | null {
+  const room = rooms.find((room) => room.id === roomId && room.active);
+
+  if (!room) {
+    return null;
+  }
+
+  const { active, ...roomDetails } = room;
+  return roomDetails;
+}
