@@ -8,10 +8,10 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "bootstrap-admin": "tsx scripts/bootstrap-admin.ts",
+    "test": "node --env-file-if-exists=.env --import ./scripts/testEnv.mjs --import tsx --test \"src/**/*.test.ts\""
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
-    "db:studio": "drizzle-kit studio",
-    "test": "node --import tsx --import ./scripts/test-env.ts --test --test-concurrency=1 \"src/**/*.test.ts\""
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "bcrypt": "6.0.0",
@@ -21,6 +21,7 @@
     "drizzle-orm": "0.45.4",
     "express": "5.2.1",
     "jsonwebtoken": "9.0.3",
+    "luxon": "^3.7.2",
     "pg": "^8.23.1"
   },
   "devDependencies": {
@@ -28,6 +29,7 @@
     "@types/cors": "2.8.19",
     "@types/express": "5.0.6",
     "@types/jsonwebtoken": "9.0.10",
+    "@types/luxon": "^3.7.6",
     "@types/node": "26.6.3",
     "@types/pg": "^8.23.1",
     "@types/supertest": "^7.2.1",
