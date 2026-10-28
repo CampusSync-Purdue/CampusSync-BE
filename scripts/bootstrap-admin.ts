@@ -1,6 +1,9 @@
 import 'dotenv/config'
 import bcrypt from 'bcryptjs'
+import { eq } from 'drizzle-orm'
 import { pool } from '../src/config/database.js'
+import { db } from '../src/db/index.js'
+import { users } from '../src/db/schema.js'
 
 const email = process.env.ADMIN_EMAIL
 const password = process.env.ADMIN_PASSWORD
@@ -14,26 +17,31 @@ if (!email || !password || !name) {
 
 async function bootstrapAdmin(): Promise<void> {
   try {
-    const existingAdmin = await pool.query(
-      "SELECT id, email FROM users WHERE role = 'admin' LIMIT 1",
-    )
+    const [existingAdmin] = await db
+      .select({ id: users.id, email: users.email })
+      .from(users)
+      .where(eq(users.role, 'admin'))
+      .limit(1)
 
-    if (existingAdmin.rowCount && existingAdmin.rowCount > 0) {
-      console.log(`An administrator already exists: ${existingAdmin.rows[0].email}`)
+    if (existingAdmin) {
+      console.log(`An administrator already exists: ${existingAdmin.email}`)
       return
     }
 
-    const passwordHash = await bcrypt.hash(password, 12)
+    const passwordHash = await bcrypt.hash(password!, 12)
 
-    const result = await pool.query(
-      `INSERT INTO users (name, email, password_hash, role)
-       VALUES ($1, $2, $3, 'admin')
-       RETURNING id, name, email, role`,
-      [name.trim(), email.trim().toLowerCase(), passwordHash],
-    )
+    const [admin] = await db
+      .insert(users)
+      .values({
+        name: name!.trim(),
+        email: email!.trim().toLowerCase(),
+        passwordHash,
+        role: 'admin',
+      })
+      .returning({ id: users.id, name: users.name, email: users.email, role: users.role })
 
     console.log('Administrator created successfully:')
-    console.log(result.rows[0])
+    console.log(admin)
   } finally {
     await pool.end()
   }

@@ -5,8 +5,8 @@ import { JWT_SECRET } from '../config/environment.js'
 import {
   findUserByEmail,
   findUserById,
-  toPublicUser,
-} from '../services/authService.js'
+} from '../repositories/userRepository.js'
+import { toPublicUser } from '../types/user.js'
 import type {
   AuthResponse,
   AuthTokenPayload,
@@ -34,7 +34,7 @@ export async function login(
     return
   }
 
-  const user = findUserByEmail(email.trim())
+  const user = await findUserByEmail(email.trim())
   const passwordMatches = user
     ? await bcrypt.compare(password, user.passwordHash)
     : false
@@ -64,11 +64,11 @@ export function logout(_request: Request, response: Response<{ message: string }
   response.status(200).json({ message: 'Logged out successfully' })
 }
 
-export function getMe(
+export async function getMe(
   request: Request,
   response: Response<{ user: PublicUser } | ErrorResponse>,
-): void {
-  const user = request.auth ? findUserById(request.auth.id) : undefined
+): Promise<void> {
+  const user = request.auth ? await findUserById(request.auth.id) : undefined
 
   if (!user) {
     response.status(401).json({ message: 'Invalid or expired token.' })

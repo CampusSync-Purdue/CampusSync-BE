@@ -1,4 +1,5 @@
 import bcrypt from "bcrypt";
+import { getPgErrorCode, PG_UNIQUE_VIOLATION } from "../db/errors.js";
 import {
   findUserByEmail,
   insertUser,
@@ -32,18 +33,29 @@ export class EmailAlreadyRegisteredError extends Error {
 export async function registerUser(
   input: RegisterUserInput,
 ): Promise<PublicUser> {
-  if (findUserByEmail(input.email)) {
+  // Fast path that skips the bcrypt work for an obvious duplicate.
+  if (await findUserByEmail(input.email)) {
     throw new EmailAlreadyRegisteredError();
   }
 
   const passwordHash = await bcrypt.hash(input.password, PASSWORD_SALT_ROUNDS);
 
-  const user = insertUser({
-    name: input.name,
-    email: input.email,
-    passwordHash,
-    role: DEFAULT_USER_ROLE,
-  });
+  try {
+    const user = await insertUser({
+      name: input.name,
+      email: input.email,
+      passwordHash,
+      role: DEFAULT_USER_ROLE,
+    });
 
-  return toPublicUser(user);
+    return toPublicUser(user);
+  } catch (error) {
+    // Two concurrent registrations can both pass the check above; the unique
+    // index on lower(email) is the real guarantee.
+    if (getPgErrorCode(error) === PG_UNIQUE_VIOLATION) {
+      throw new EmailAlreadyRegisteredError();
+    }
+
+    throw error;
+  }
 }

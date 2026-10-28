@@ -1,56 +1,39 @@
 import assert from "node:assert/strict";
-import type { AddressInfo } from "node:net";
 import { after, afterEach, before, describe, it } from "node:test";
 import bcrypt from "bcrypt";
-import app from "../app.js";
-import { clearUsers, findUserByEmail } from "../repositories/userRepository.js";
+import { findUserByEmail } from "../repositories/userRepository.js";
+import {
+  closeTestDatabase,
+  resetTestDatabase,
+  setupTestDatabase,
+} from "../test/database.js";
+import { startTestServer, type JsonResponse } from "../test/server.js";
 
-type RegisterResponse = {
-  status: number;
-  body: {
-    message?: string;
-    errors?: Record<string, string>;
-    user?: Record<string, unknown>;
-  };
-  rawBody: string;
-};
+type RegisterResponse = JsonResponse<{
+  message?: string;
+  errors?: Record<string, string>;
+  user?: Record<string, unknown>;
+}>;
 
-let baseUrl = "";
-let server: ReturnType<typeof app.listen>;
+let server: Awaited<ReturnType<typeof startTestServer>>;
 
 before(async () => {
-  await new Promise<void>((resolve) => {
-    server = app.listen(0, () => resolve());
-  });
-
-  const { port } = server.address() as AddressInfo;
-  baseUrl = `http://127.0.0.1:${port}`;
+  await setupTestDatabase();
+  await resetTestDatabase();
+  server = await startTestServer();
 });
 
 after(async () => {
-  await new Promise<void>((resolve, reject) => {
-    server.close((error) => (error ? reject(error) : resolve()));
-  });
+  await server.close();
+  await closeTestDatabase();
 });
 
-afterEach(() => {
-  clearUsers();
+afterEach(async () => {
+  await resetTestDatabase();
 });
 
-async function postRegister(payload: unknown): Promise<RegisterResponse> {
-  const response = await fetch(`${baseUrl}/api/auth/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  const rawBody = await response.text();
-
-  return {
-    status: response.status,
-    body: rawBody ? JSON.parse(rawBody) : {},
-    rawBody,
-  };
+function postRegister(payload: unknown): Promise<RegisterResponse> {
+  return server.request("POST", "/api/auth/register", { body: payload });
 }
 
 const validPayload = {
@@ -103,7 +86,7 @@ describe("POST /api/auth/register", () => {
   it("stores a bcrypt hash rather than the plaintext password", async () => {
     await postRegister(validPayload);
 
-    const stored = findUserByEmail(validPayload.email);
+    const stored = await findUserByEmail(validPayload.email);
 
     assert.ok(stored, "user should have been stored");
     assert.notEqual(stored.passwordHash, validPayload.password);
@@ -168,7 +151,7 @@ describe("POST /api/auth/register", () => {
   it("does not store a user when validation fails", async () => {
     await postRegister({ name: "", email: "bad", password: "x" });
 
-    assert.equal(findUserByEmail("bad"), undefined);
+    assert.equal(await findUserByEmail("bad"), undefined);
   });
 
   it("ignores a client-supplied role and id", async () => {
