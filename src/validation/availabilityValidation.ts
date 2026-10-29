@@ -1,5 +1,6 @@
 import { campusLocalToUtc } from '../utils/dateTime.js'
 import { validateReservationDuration } from './reservationDuration.js'
+import { validateReservationStartTime } from './reservationTimeValidation.js'
 
 /**
  * Validation for the availability search (CSYNC-15 / US-06).
@@ -58,6 +59,7 @@ function isRealDate(date: string): boolean {
 
 export function validateAvailabilityQuery(
   query: unknown,
+  now: Date = new Date(),
 ): AvailabilityValidationResult {
   const errors: AvailabilityFieldErrors = {}
   const input = (query ?? {}) as Record<string, unknown>
@@ -89,7 +91,13 @@ export function validateAvailabilityQuery(
   // Comparing HH:mm as text is safe because both are zero-padded 24-hour
   // values. A booking is confined to one calendar date, so an end time equal
   // to or before the start is always wrong rather than an overnight range.
-  if (!errors.startTime && !errors.endTime && startTime && endTime && endTime <= startTime) {
+  if (
+    !errors.startTime &&
+    !errors.endTime &&
+    startTime &&
+    endTime &&
+    endTime <= startTime
+  ) {
     errors.endTime = 'The end time must be after the start time.'
   }
 
@@ -116,6 +124,12 @@ export function validateAvailabilityQuery(
       error instanceof Error ? error.message : 'That time is not valid on this date.'
 
     return { valid: false, errors: { startTime: message } }
+  }
+
+  const startTimeError = validateReservationStartTime(startUtc, now)
+
+  if (startTimeError) {
+    return { valid: false, errors: { startTime: startTimeError } }
   }
 
   // The duration limit is checked here, against the instants rather than the
