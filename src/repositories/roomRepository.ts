@@ -56,6 +56,9 @@ export async function findActiveRooms(): Promise<RoomSummary[]> {
 /**
  * One active room by id, or null when no active room has that id.
  *
+ * An inactive room is treated as absent rather than hidden, so the catalog
+ * and this lookup agree about which rooms exist.
+ *
  * A malformed id cannot match any room, so the uuid shape is checked before
  * the query rather than letting Postgres raise a cast error.
  */

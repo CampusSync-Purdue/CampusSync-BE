@@ -12,10 +12,17 @@ import {
 } from '../services/reservationService.js'
 import { parseCalendarDate } from '../validation/reservationValidation.js'
 import type { Request, Response } from 'express'
-import { createRoom, getActiveRooms } from '../services/roomService.js'
+import {
+  createRoom,
+  getActiveRoomById,
+  getActiveRooms,
+} from '../services/roomService.js'
 import { validateNewRoom } from '../validation/roomValidation.js'
 import { findAvailableRooms } from '../services/availabilityService.js'
 import { validateAvailabilityQuery } from '../validation/availabilityValidation.js'
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export async function getRooms(_request: Request, response: Response) {
   try {
@@ -25,6 +32,45 @@ export async function getRooms(_request: Request, response: Response) {
 
     response.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).json({
       message: 'Unable to load rooms right now. Please try again.',
+    })
+  }
+}
+
+/**
+ * GET /api/rooms/:roomId (US-14)
+ *
+ * An inactive room and an unknown id are both reported as not found, so the
+ * endpoint never reveals that a room exists but is switched off. A malformed
+ * id is answered the same way rather than letting Postgres raise a type error
+ * on the uuid comparison.
+ */
+export async function getRoomById(
+  request: Request<{ roomId: string }>,
+  response: Response,
+) {
+  const { roomId } = request.params
+
+  if (!UUID_PATTERN.test(roomId)) {
+    response.status(HTTP_STATUS_NOT_FOUND).json({ message: 'Room not found.' })
+
+    return
+  }
+
+  try {
+    const room = await getActiveRoomById(roomId)
+
+    if (!room) {
+      response.status(HTTP_STATUS_NOT_FOUND).json({ message: 'Room not found.' })
+
+      return
+    }
+
+    response.status(HTTP_STATUS_OK).json(room)
+  } catch (error) {
+    console.error('Failed to load room', error)
+
+    response.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).json({
+      message: 'Unable to load the room right now. Please try again.',
     })
   }
 }
