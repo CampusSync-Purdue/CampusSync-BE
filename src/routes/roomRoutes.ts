@@ -1,11 +1,20 @@
 import { Router } from "express";
-import { getRoomAvailability, getRooms } from "../controllers/roomController.js";
+import {
+  getAvailableRooms,
+  getRoomAvailability,
+  getRooms,
+  postRoom,
+} from "../controllers/roomController.js";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { requireRole } from "../middleware/requireRole.js";
 
 const router = Router();
 
 router.get("/", getRooms);
-// Signed-in users only: a room's schedule is not public.
+// Declared before any "/:roomId" route so that "availability" is not read as
+// a room identifier.
+router.get("/availability", getAvailableRooms);
+router.post("/", requireAuth, requireRole("admin"), postRoom);
 router.get("/:roomId/availability", requireAuth, getRoomAvailability);
 
 export default router;

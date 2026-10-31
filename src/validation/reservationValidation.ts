@@ -7,9 +7,16 @@ import {
   toZonedDateTime,
 } from "../utils/campusTime.js";
 import { isUuid } from "./uuid.js";
+import { MAX_RESERVATION_DURATION_MINUTES } from "../config/reservationRules.js";
 
 export const RESERVATION_MIN_MINUTES = 30;
-export const RESERVATION_MAX_MINUTES = 4 * 60;
+/**
+ * The limit comes from `config/reservationRules.ts`, which is the one place
+ * it is defined (docs/booking-rules.md). It was 4 hours here while the
+ * availability search, `GET /api/reservations/rules` and the UI all used 3,
+ * so a booking the search refused was accepted on create.
+ */
+export const RESERVATION_MAX_MINUTES = MAX_RESERVATION_DURATION_MINUTES;
 export const RESERVATION_INCREMENT_MINUTES = 30;
 export const RESERVATION_MAX_DAYS_AHEAD = 30;
 

@@ -51,13 +51,19 @@ export function toZonedDateTime(instant: Date, timeZone: string): ZonedDateTime 
 
 /** "HH:mm" → minutes since midnight. Returns NaN for malformed input. */
 export function timeToMinutes(time: string): number {
-  const match = /^([01]\d|2[0-4]):([0-5]\d)$/.exec(time);
+  // 24:00 is accepted because a day's closing time may be midnight; 24:01
+  // onwards are not wall-clock times, and every other pattern in the repo
+  // uses ([01]\d|2[0-3]).
+  const match = /^(?:([01]\d|2[0-3]):([0-5]\d)|(24):(00))$/.exec(time);
 
   if (!match) {
     return Number.NaN;
   }
 
-  return Number(match[1]) * 60 + Number(match[2]);
+  // The alternation puts 24:00 in the second pair of groups.
+  const [hours, minutes] = match[1] ? [match[1], match[2]] : [match[3], match[4]];
+
+  return Number(hours) * 60 + Number(minutes);
 }
 
 /** Minutes since midnight → "HH:mm". */

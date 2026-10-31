@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { DEFAULT_OPENING_HOURS } from "../db/seedRooms.js";
+import { describeMaxDuration } from "../config/reservationRules.js";
 import {
   checkWithinOpeningHours,
   parseCalendarDate,
   parseIsoInstant,
+  RESERVATION_MAX_MINUTES,
   validateReservationInput,
   type ReservationFieldErrors,
 } from "./reservationValidation.js";
@@ -120,15 +122,25 @@ describe("validateReservationInput", () => {
     );
   });
 
-  it("accepts the 30-minute minimum and 4-hour maximum", () => {
+  it("accepts the 30-minute minimum and the configured maximum", () => {
+    const end = new Date(
+      Date.parse("2026-10-27T14:00:00Z") + RESERVATION_MAX_MINUTES * 60_000,
+    ).toISOString();
+
     assert.equal(validate("2026-10-27T14:00:00Z", "2026-10-27T14:30:00Z").valid, true);
-    assert.equal(validate("2026-10-27T14:00:00Z", "2026-10-27T18:00:00Z").valid, true);
+    assert.equal(validate("2026-10-27T14:00:00Z", end).valid, true);
   });
 
-  it("rejects bookings longer than 4 hours", () => {
+  it("rejects bookings longer than the configured maximum", () => {
+    // The limit lives in config/reservationRules.ts, so this asserts the
+    // policy rather than a number repeated here.
+    const tooLong = new Date(
+      Date.parse("2026-10-27T14:00:00Z") + (RESERVATION_MAX_MINUTES + 30) * 60_000,
+    ).toISOString();
+
     assert.equal(
-      errorsOf(validate("2026-10-27T14:00:00Z", "2026-10-27T18:30:00Z")).endTime,
-      "Reservations can be at most 4 hours.",
+      errorsOf(validate("2026-10-27T14:00:00Z", tooLong)).endTime,
+      `Reservations can be at most ${describeMaxDuration(RESERVATION_MAX_MINUTES)}.`,
     );
   });
 
