@@ -66,21 +66,25 @@ export async function insertTestUser(
 type TestRoom = {
   tag: string
   name: string
+  location?: string
   capacity?: number
+  amenities?: string[]
   isActive?: boolean
   availabilityHours?: Record<string, { open: string; close: string }>
 }
 
+
 /** Inserts a room tagged for this run, and returns its id. */
 export async function insertTestRoom(room: TestRoom): Promise<string> {
   const result = await pool.query<{ id: string }>(
-    `INSERT INTO rooms (name, location, capacity, availability_hours, is_active)
-     VALUES ($1, $2, $3, $4::jsonb, $5)
+    `INSERT INTO rooms (name, location, capacity, amenities, availability_hours, is_active)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6)
      RETURNING id`,
     [
       room.name,
-      room.tag,
+      room.location ?? room.tag,
       room.capacity ?? 10,
+      room.amenities ?? [],
       JSON.stringify(room.availabilityHours ?? {}),
       room.isActive ?? true,
     ],
