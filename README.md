@@ -243,6 +243,40 @@ Users are stored in the Postgres `users` table by
 all read that table, so a newly registered account can sign in, and the JWT
 `id` is the user's database UUID.
 
+## Rooms and reservations
+
+Seed the demo rooms (fixed ids, open 08:00–20:00 every day; safe to re-run):
+
+```bash
+npm run seed-rooms
+```
+
+Booking rules use the campus time zone (`CAMPUS_TIMEZONE`, default
+`America/Indiana/Indianapolis`).
+
+| Endpoint | Auth | Purpose |
+| -------- | ---- | ------- |
+| `GET /api/rooms` | No | Active rooms with opening hours |
+| `GET /api/rooms/:roomId/availability?date=YYYY-MM-DD` | Yes | Opening hours and booked ranges for a campus date. Each range has `isMine`; no other user details are returned |
+| `POST /api/reservations` | Yes | Create an active reservation for the signed-in user |
+
+`POST /api/reservations` takes `{ roomId, startTime, endTime }` as ISO 8601
+timestamps with an offset (e.g. `2026-10-27T10:00:00-04:00`). The user comes
+from the token; a `userId` or `status` in the body is ignored. Rules:
+
+- 30 minutes to 4 hours, on the hour or half hour, within one campus day
+- In the future and at most 30 days ahead
+- Within the room's opening hours
+- No overlap with another active reservation (enforced by the database)
+
+| Status | Meaning |
+| ------ | ------- |
+| `201` | Created; returns `{ message, reservation }` |
+| `400` | Invalid fields or outside opening hours (`errors` per field) |
+| `401` | Not signed in, or the account no longer exists |
+| `404` | Room does not exist or is inactive |
+| `409` | Overlaps another reservation |
+
 ## Tests
 
 Integration tests use a separate database that they truncate between tests.
