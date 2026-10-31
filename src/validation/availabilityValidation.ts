@@ -15,7 +15,10 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
 
 export type AvailabilityFieldErrors = Partial<
-  Record<'date' | 'startTime' | 'endTime', string>
+  Record<
+    'date' | 'startTime' | 'endTime' | 'location' | 'minCapacity' | 'amenities',
+    string
+  >
 >
 
 export type AvailabilityQuery = {
@@ -29,6 +32,12 @@ export type AvailabilityQuery = {
   startUtc: string
   /** The end as an absolute UTC instant. */
   endUtc: string
+  /** Optional room location to filter by (case-insensitive). */
+  location?: string
+  /** Optional minimum number of people the room must accommodate. */
+  minCapacity?: number
+  /** Optional amenities that must all be present in a matching room. */
+  amenities?: string[]
 }
 
 export type AvailabilityValidationResult =
@@ -65,6 +74,49 @@ export function validateAvailabilityQuery(
   const date = asString(input.date)
   const startTime = asString(input.startTime)
   const endTime = asString(input.endTime)
+  const location = asString(input.location)
+  const minCapacityInput = asString(input.minCapacity)
+  const amenitiesInput = asString(input.amenities)
+
+  let minCapacity: number | undefined
+  let amenities: string[] | undefined
+
+  if (input.location !== undefined) {
+    if (typeof input.location !== 'string' || input.location.trim().length > 100) {
+      errors.location = 'Enter a valid location (up to 100 characters).'
+    }
+  }
+
+  if (input.minCapacity !== undefined && input.minCapacity !== '') {
+    if (
+      !minCapacityInput ||
+      !/^[1-9]\d*$/.test(minCapacityInput) ||
+      !Number.isSafeInteger(Number(minCapacityInput))
+    ) {
+      errors.minCapacity = 'Enter a positive whole number.'
+    } else {
+      minCapacity = Number(minCapacityInput)
+    }
+  }
+
+  if (input.amenities !== undefined && input.amenities !== '') {
+    if (!amenitiesInput) {
+      errors.amenities = 'Enter valid amenities.'
+    } else {
+      amenities = amenitiesInput
+        .split(',')
+        .map((amenity) => amenity.trim())
+        .filter(Boolean)
+
+      if (
+        amenities.length === 0 ||
+        amenities.length > 20 ||
+        amenities.some((amenity) => amenity.length > 100)
+      ) {
+        errors.amenities = 'Enter between 1 and 20 valid amenities.'
+      }
+    } 
+  }
 
   if (!date) {
     errors.date = 'A date is required.'
@@ -135,6 +187,9 @@ export function validateAvailabilityQuery(
       endTime: validEnd,
       startUtc,
       endUtc,
+      location,
+      minCapacity,
+      amenities,
     },
   }
 }
