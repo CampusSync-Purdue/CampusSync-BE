@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "bootstrap-admin": "tsx scripts/bootstrap-admin.ts",
-    "test": "node --env-file-if-exists=.env --import ./scripts/testEnv.mjs --import tsx --test \"src/**/*.test.ts\""
+    "test": "node --import tsx --import ./scripts/test-env.ts --test --test-concurrency=1 \"src/**/*.test.ts\"",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:studio": "drizzle-kit studio"
