@@ -17,6 +17,9 @@ type RoomRow = {
   availability_hours: OperatingHours
 }
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 const ROOM_COLUMNS = `
   id,
   name,
@@ -55,8 +58,17 @@ export async function findActiveRooms(): Promise<RoomSummary[]> {
  *
  * An inactive room is treated as absent rather than hidden, so the catalog
  * and this lookup agree about which rooms exist.
+ *
+ * A malformed id cannot match any room, so the uuid shape is checked before
+ * the query rather than letting Postgres raise a cast error.
  */
-export async function findRoomById(roomId: string): Promise<RoomSummary | null> {
+export async function findActiveRoomById(
+  roomId: string,
+): Promise<RoomSummary | null> {
+  if (!UUID_PATTERN.test(roomId)) {
+    return null
+  }
+
   const result = await pool.query<RoomRow>(
     `SELECT ${ROOM_COLUMNS} FROM rooms WHERE id = $1 AND is_active`,
     [roomId],

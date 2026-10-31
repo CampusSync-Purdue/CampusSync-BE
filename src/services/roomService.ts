@@ -1,6 +1,6 @@
 import {
   findActiveRooms,
-  findRoomById,
+  findActiveRoomById,
   insertRoom,
 } from '../repositories/roomRepository.js'
 import type { RoomSummary } from '../types/room.js'
@@ -22,7 +22,7 @@ export async function getActiveRooms(): Promise<RoomSummary[]> {
 export async function getActiveRoomById(
   roomId: string,
 ): Promise<RoomSummary | null> {
-  return findRoomById(roomId)
+  return findActiveRoomById(roomId)
 }
 
 /** Creates a room. It is active immediately. */

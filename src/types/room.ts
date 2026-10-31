@@ -65,3 +65,12 @@ export type RoomSummary = Pick<
 > & {
   availabilityHours: OperatingHours;
 };
+
+/**
+ * Alias for `OperatingHours`.
+ *
+ * The booking work (CSYNC-17) calls the same structure `OpeningHours`. Both
+ * names are kept until the two payload shapes are unified, so neither side
+ * had to be rewritten during the merge.
+ */
+export type OpeningHours = OperatingHours;

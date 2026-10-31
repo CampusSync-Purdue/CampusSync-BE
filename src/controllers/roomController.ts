@@ -1,11 +1,17 @@
-import type { Request, Response } from 'express'
 import {
   HTTP_STATUS_BAD_REQUEST,
   HTTP_STATUS_CREATED,
   HTTP_STATUS_INTERNAL_SERVER_ERROR,
   HTTP_STATUS_NOT_FOUND,
   HTTP_STATUS_OK,
+  HTTP_STATUS_UNAUTHORIZED,
 } from '../constants/httpStatus.js'
+import {
+  getRoomAvailability as getAvailabilityForRoom,
+  RoomNotFoundError,
+} from '../services/reservationService.js'
+import { parseCalendarDate } from '../validation/reservationValidation.js'
+import type { Request, Response } from 'express'
 import {
   createRoom,
   getActiveRoomById,
@@ -138,5 +144,41 @@ export async function getAvailableRooms(request: Request, response: Response) {
     response.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).json({
       message: 'Unable to search room availability right now. Please try again.',
     })
+  }
+}
+
+/** GET /api/rooms/:roomId/availability?date=YYYY-MM-DD — requires requireAuth. */
+export async function getRoomAvailability(
+  request: Request<{ roomId: string }>,
+  response: Response,
+) {
+  const userId = request.auth?.id
+
+  if (!userId) {
+    response.status(HTTP_STATUS_UNAUTHORIZED).json({ message: 'Authentication is required.' })
+    return
+  }
+
+  const date = parseCalendarDate(request.query.date)
+
+  if (!date) {
+    response.status(HTTP_STATUS_BAD_REQUEST).json({
+      message: 'Please correct the highlighted fields.',
+      errors: { date: 'Enter a valid date (YYYY-MM-DD).' },
+    })
+    return
+  }
+
+  try {
+    const availability = await getAvailabilityForRoom(request.params.roomId, date, userId)
+
+    response.status(HTTP_STATUS_OK).json(availability)
+  } catch (error) {
+    if (error instanceof RoomNotFoundError) {
+      response.status(HTTP_STATUS_NOT_FOUND).json({ message: error.message })
+      return
+    }
+
+    throw error
   }
 }

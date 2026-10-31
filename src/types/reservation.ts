@@ -1,3 +1,5 @@
+import type { ReservationRecord } from '../db/schema.js'
+
 /**
  * Reservation statuses and shapes.
  *
@@ -53,4 +55,46 @@ export type ReservationView = Omit<Reservation, 'status' | 'roomId'> & {
   status: ReservationStatus
   timeframe: ReservationTimeframe
   room: ReservationRoomSummary
+}
+
+/* ---- Booking creation (CSYNC-17) ---- */
+
+/**
+ * A reservation row as Drizzle returns it, with `Date` columns.
+ *
+ * `Reservation` above is the same row after the repository maps it to the
+ * ISO strings the API speaks. Keep the two apart: only code talking directly
+ * to Drizzle should see this one.
+ */
+export type InsertedReservation = ReservationRecord
+
+/** Confirmation data returned after creating a reservation. Times are UTC ISO strings. */
+export type ReservationConfirmation = {
+  id: string
+  roomId: string
+  roomName: string
+  roomLocation: string
+  userId: string
+  startTime: string
+  endTime: string
+  status: ReservationStatus
+  createdAt: string
+}
+
+/** A booked time range for a room. Times are UTC ISO strings; no user details. */
+export type BookedInterval = {
+  startTime: string
+  endTime: string
+  /** True when the signed-in requester made this reservation. */
+  isMine: boolean
+}
+
+export type RoomAvailability = {
+  roomId: string
+  /** Campus-local date, YYYY-MM-DD. */
+  date: string
+  timeZone: string
+  /** Campus-local opening hours that day, or null when closed. */
+  openingHours: { open: string; close: string } | null
+  booked: BookedInterval[]
 }
