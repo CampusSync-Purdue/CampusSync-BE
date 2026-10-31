@@ -51,6 +51,21 @@ export async function findActiveRooms(): Promise<RoomSummary[]> {
 }
 
 /**
+ * One active room by id, or null when no active room has that id.
+ *
+ * An inactive room is treated as absent rather than hidden, so the catalog
+ * and this lookup agree about which rooms exist.
+ */
+export async function findRoomById(roomId: string): Promise<RoomSummary | null> {
+  const result = await pool.query<RoomRow>(
+    `SELECT ${ROOM_COLUMNS} FROM rooms WHERE id = $1 AND is_active`,
+    [roomId],
+  )
+
+  return result.rows[0] ? toRoomSummary(result.rows[0]) : null
+}
+
+/**
  * Active rooms with no active reservation overlapping the requested window.
  *
  * The overlap test uses the same half-open range, `[start, end)`, as the

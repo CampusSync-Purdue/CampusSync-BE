@@ -1,4 +1,8 @@
-import { findActiveRooms, insertRoom } from '../repositories/roomRepository.js'
+import {
+  findActiveRooms,
+  findRoomById,
+  insertRoom,
+} from '../repositories/roomRepository.js'
 import type { RoomSummary } from '../types/room.js'
 import type { NewRoomInput } from '../validation/roomValidation.js'
 
@@ -12,6 +16,13 @@ import type { NewRoomInput } from '../validation/roomValidation.js'
  */
 export async function getActiveRooms(): Promise<RoomSummary[]> {
   return findActiveRooms()
+}
+
+/** One active room by id, or null when there is none (CSYNC-14). */
+export async function getActiveRoomById(
+  roomId: string,
+): Promise<RoomSummary | null> {
+  return findRoomById(roomId)
 }
 
 /** Creates a room. It is active immediately. */
