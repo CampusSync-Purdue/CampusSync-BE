@@ -114,4 +114,73 @@ describe('validateAvailabilityQuery', () => {
       errorsFor({ date: '2026-11-01', startTime: '01:30', endTime: '01:45' }).startTime,
     )
   })
+
+  
+  it('accepts all optional room filters together', () => {
+    const result = validateAvailabilityQuery({
+      ...VALID,
+      location: 'Library',
+      minCapacity: '8',
+      amenities: 'WiFi, Whiteboard',
+    })
+
+    assert.equal(result.valid, true)
+
+    if (result.valid) {
+      assert.equal(result.value.location, 'Library')
+      assert.equal(result.value.minCapacity, 8)
+      assert.deepEqual(result.value.amenities, ['WiFi', 'Whiteboard'])
+    }
+  })
+
+  it('accepts a search without optional room filters', () => {
+    const result = validateAvailabilityQuery(VALID)
+
+    assert.equal(result.valid, true)
+
+    if (result.valid) {
+      assert.equal(result.value.location, undefined)
+      assert.equal(result.value.minCapacity, undefined)
+      assert.equal(result.value.amenities, undefined)
+    }
+  })
+
+  it('rejects a non-numeric minimum capacity', () => {
+    const errors = errorsFor({ ...VALID, minCapacity: 'abc' })
+
+    assert.ok(errors.minCapacity)
+  })
+
+  it('rejects zero or negative minimum capacity', () => {
+    assert.ok(errorsFor({ ...VALID, minCapacity: '0' }).minCapacity)
+    assert.ok(errorsFor({ ...VALID, minCapacity: '-5' }).minCapacity)
+  })
+
+  it('rejects fractional minimum capacity', () => {
+    const errors = errorsFor({ ...VALID, minCapacity: '2.5' })
+
+    assert.ok(errors.minCapacity)
+  })
+
+  it('rejects a location exceeding 100 characters', () => {
+    const errors = errorsFor({
+      ...VALID,
+      location: 'A'.repeat(101),
+    })
+
+    assert.ok(errors.location)
+  })
+
+  it('rejects more than 20 amenities', () => {
+    const errors = errorsFor({
+      ...VALID,
+      amenities: Array.from(
+        { length: 21 },
+        (_, index) => `Amenity${index + 1}`,
+      ).join(','),
+    })
+
+    assert.ok(errors.amenities)
+  })
+
 })
