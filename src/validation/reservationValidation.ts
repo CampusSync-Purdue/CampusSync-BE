@@ -135,7 +135,7 @@ function formatDuration(minutes: number): string {
 /**
  * Validates the shape of a create-reservation request and the booking rules
  * that do not depend on the room: start before end, 30-minute boundaries,
- * 30 minutes to 4 hours, in the future, at most 30 days ahead, one campus day.
+ * 30 minutes to the configured maximum (3 hours by default), in the future, at most 30 days ahead, one campus day.
  *
  * Opening hours depend on the room; see `checkWithinOpeningHours`.
  */
