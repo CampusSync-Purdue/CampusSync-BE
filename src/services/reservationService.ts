@@ -22,6 +22,7 @@ import {
 } from '../validation/reservationValidation.js'
 import { isUuid } from '../validation/uuid.js'
 import {
+  cancelOwnReservationById,
   cancelReservationById,
   findAllReservations,
   findReservationById,
@@ -147,6 +148,51 @@ export async function cancelReservation(
 
   if (!cancelled) {
     // Another request cancelled it between the read and the write.
+    return { ok: false, reason: 'not-cancellable' }
+  }
+
+  return { ok: true, reservation: toView(cancelled, now) }
+}
+
+/**
+ * Cancels a reservation belonging to the authenticated user (CSYNC-21).
+ *
+ * Users may cancel only their own upcoming active reservations.
+ *
+ * Reservations belonging to other users are treated as not found
+ * to avoid exposing another user's reservation information.
+ *
+ * Ownership, active status, and future start time are also checked
+ * directly in the database when performing the update.
+ *
+ * The reservation record is preserved with status 'cancelled',
+ * freeing its time slot for future bookings.
+ */
+export async function cancelOwnReservation(
+  reservationId: string,
+  userId: string,
+  now: Date = new Date(),
+): Promise<CancellationResult> {
+  const existing = await findReservationById(reservationId)
+
+  // The reservation must exist and belong to this user.
+  if (!existing || existing.userId !== userId) {
+    return { ok: false, reason: 'not-found' }
+  }
+
+  // Only upcoming active reservations can be cancelled.
+  if (!isCancellable(existing, now)) {
+    return { ok: false, reason: 'not-cancellable' }
+  }
+
+  // Enforce ownership and eligibility in the database update.
+  const cancelled = await cancelOwnReservationById(
+    reservationId,
+    userId,
+  )
+
+  if (!cancelled) {
+    // The reservation may have changed since it was checked.
     return { ok: false, reason: 'not-cancellable' }
   }
 
