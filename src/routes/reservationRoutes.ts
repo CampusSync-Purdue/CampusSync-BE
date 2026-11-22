@@ -4,6 +4,7 @@ import {
   createReservation,
   getAllReservationsForAdmin,
   getMyReservations,
+  postCancelMyReservation,
   postCancelReservation,
 } from "../controllers/reservationController.js";
 import { requireAuth } from "../middleware/requireAuth.js";
@@ -11,13 +12,32 @@ import { requireRole } from "../middleware/requireRole.js";
 
 const router = Router();
 
+// Reservation rules
 router.get("/rules", getRules);
-// Creating a reservation (CSYNC-17). Any signed-in user may book.
+
+// Creating a reservation (CSYNC-17).
+// Any authenticated user may book a room.
 router.post("/", requireAuth, createReservation);
+
+// View the authenticated user's reservations (CSYNC-20).
 router.get("/me", requireAuth, getMyReservations);
-router.get("/", requireAuth, requireRole("admin"), getAllReservationsForAdmin);
-// POST rather than PATCH: the API's CORS configuration allows GET and POST,
-// and cancelling is a named action rather than an arbitrary field update.
+
+// Cancel the authenticated user's own reservation (CSYNC-21).
+router.post(
+  "/me/:reservationId/cancel",
+  requireAuth,
+  postCancelMyReservation,
+);
+
+// View all reservations (administrators only).
+router.get(
+  "/",
+  requireAuth,
+  requireRole("admin"),
+  getAllReservationsForAdmin,
+);
+
+// Cancel any eligible reservation (administrators only).
 router.post(
   "/:reservationId/cancel",
   requireAuth,

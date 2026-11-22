@@ -132,6 +132,8 @@ export async function findAllReservations(): Promise<ReservationWithRoom[]> {
  *
  * Because the exclusion constraint only covers active rows, cancelling frees
  * the time range for a new booking immediately.
+ *
+ * This function is used for administrator cancellation.
  */
 export async function cancelReservationById(
   reservationId: string,
@@ -152,14 +154,50 @@ export async function cancelReservationById(
   return findReservationById(reservationId)
 }
 
+/**
+ * Cancels an upcoming active reservation belonging to a specific user.
+ *
+ * CSYNC-21 — Cancel my reservation (US-12).
+ *
+ * A regular user can cancel only their own upcoming, active reservations.
+ *
+ * The ownership, status, and start-time checks are performed directly
+ * in the database to prevent unauthorized or invalid cancellations.
+ *
+ * The reservation record is preserved with status 'cancelled'.
+ * Since the exclusion constraint applies only to active reservations,
+ * the cancelled time slot becomes available for new bookings.
+ */
+export async function cancelOwnReservationById(
+  reservationId: string,
+  userId: string,
+): Promise<ReservationWithRoom | undefined> {
+  const updated = await pool.query<{ id: string }>(
+    `UPDATE reservations
+        SET status = 'cancelled', updated_at = now()
+      WHERE id = $1
+        AND user_id = $2
+        AND status = 'active'
+        AND start_time > now()
+      RETURNING id`,
+    [reservationId, userId],
+  )
+
+  if (updated.rowCount === 0) {
+    return undefined
+  }
+
+  return findReservationById(reservationId)
+}
+
 /* ---- Booking creation (CSYNC-17) ---- */
 
 export type NewReservation = {
-  userId: string;
-  roomId: string;
-  startTime: Date;
-  endTime: Date;
-};
+  userId: string
+  roomId: string
+  startTime: Date
+  endTime: Date
+}
 
 /**
  * Inserts an active reservation.
@@ -168,13 +206,15 @@ export type NewReservation = {
  * reservation for the same room (reservations_no_overlap), or 23503 when the
  * user or room no longer exists.
  */
-export async function insertReservation(record: NewReservation): Promise<InsertedReservation> {
+export async function insertReservation(
+  record: NewReservation,
+): Promise<InsertedReservation> {
   const [reservation] = await db
     .insert(reservations)
-    .values({ ...record, status: "active" })
-    .returning();
+    .values({ ...record, status: 'active' })
+    .returning()
 
-  return reservation;
+  return reservation
 }
 
 /**
@@ -197,10 +237,10 @@ export async function findActiveReservationTimesForRoom(
     .where(
       and(
         eq(reservations.roomId, roomId),
-        eq(reservations.status, "active"),
+        eq(reservations.status, 'active'),
         lt(reservations.startTime, to),
         gt(reservations.endTime, from),
       ),
     )
-    .orderBy(asc(reservations.startTime));
+    .orderBy(asc(reservations.startTime))
 }
