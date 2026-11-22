@@ -3,7 +3,12 @@ import { db } from '../db/index.js'
 import { reservations } from '../db/schema.js'
 import type { InsertedReservation } from '../types/reservation.js'
 import { pool } from '../config/database.js'
-import type { Reservation, ReservationRoomSummary } from '../types/reservation.js'
+import type {
+  Reservation,
+  ReservationRoomSummary,
+  ReservationStatus,
+  ReservationUserSummary,
+} from '../types/reservation.js'
 
 /**
  * Database access for reservations. This is the only module that knows how
@@ -103,22 +108,110 @@ export async function findReservationById(
   return result.rows[0] ? toReservationWithRoom(result.rows[0]) : undefined
 }
 
+/** A reservation together with its room and the user who made it. */
+export type ReservationWithRoomAndUser = ReservationWithRoom & {
+  user: ReservationUserSummary
+}
+
+type ReservationWithUserRow = ReservationRow & {
+  user_name: string
+  user_email: string
+}
+
+export type AdminReservationFilters = {
+  /** Only reservations starting at or after this instant. */
+  startsFrom?: Date
+  /** Only reservations starting before this instant. */
+  startsBefore?: Date
+  roomId?: string
+  /** A derived status; see DERIVED_STATUS_SQL. */
+  status?: ReservationStatus
+  sort: 'date' | 'room' | 'status'
+  order: 'asc' | 'desc'
+}
+
 /**
- * Every reservation with its room, newest first.
- *
- * Provisional: US-15 (CSYNC-24) owns the administrator reservation view and
- * will want filtering and paging. This exists so the administrator
- * cancellation action (US-16) has something to act on.
+ * The derived status in SQL, mirroring `deriveReservationStatus` in
+ * `services/reservationStatus.ts`: an active reservation whose end has passed
+ * is completed. `$1` is always the evaluation instant. The two must agree, or
+ * filtering by status would disagree with the status a row is shown with;
+ * `adminReservations.test.ts` checks that they do.
  */
-export async function findAllReservations(): Promise<ReservationWithRoom[]> {
-  const result = await pool.query<ReservationRow>(
-    `SELECT ${RESERVATION_COLUMNS}
+const DERIVED_STATUS_SQL = `
+  CASE
+    WHEN reservations.status = 'active' AND reservations.end_time <= $1
+      THEN 'completed'
+    ELSE reservations.status
+  END`
+
+/**
+ * ORDER BY clauses for each sort field. Only these fixed strings are ever
+ * placed in the SQL text; the caller's choice selects one of them. Start time
+ * and then id break ties, so rows with equal keys keep a stable order.
+ */
+const ORDER_BY_SQL: Record<
+  AdminReservationFilters['sort'],
+  (direction: 'ASC' | 'DESC') => string
+> = {
+  date: (direction) =>
+    `reservations.start_time ${direction}, reservations.id ${direction}`,
+  room: (direction) =>
+    `lower(rooms.name) ${direction}, reservations.start_time ASC, reservations.id ASC`,
+  status: (direction) =>
+    `derived_status ${direction}, reservations.start_time ASC, reservations.id ASC`,
+}
+
+/**
+ * Every reservation matching the filters, with its room and reserving user,
+ * for the administrator view (US-15).
+ *
+ * Filtering and sorting happen in SQL so the result is correct however many
+ * reservations exist. Every caller-supplied value is a bound parameter.
+ */
+export async function findReservationsForAdmin(
+  filters: AdminReservationFilters,
+  now: Date,
+): Promise<ReservationWithRoomAndUser[]> {
+  const conditions: string[] = []
+  const values: unknown[] = [now]
+
+  if (filters.startsFrom) {
+    values.push(filters.startsFrom)
+    conditions.push(`reservations.start_time >= $${values.length}`)
+  }
+  if (filters.startsBefore) {
+    values.push(filters.startsBefore)
+    conditions.push(`reservations.start_time < $${values.length}`)
+  }
+  if (filters.roomId) {
+    values.push(filters.roomId)
+    conditions.push(`reservations.room_id = $${values.length}`)
+  }
+  if (filters.status) {
+    values.push(filters.status)
+    conditions.push(`(${DERIVED_STATUS_SQL}) = $${values.length}`)
+  }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+  const direction = filters.order === 'asc' ? 'ASC' : 'DESC'
+
+  const result = await pool.query<ReservationWithUserRow>(
+    `SELECT ${RESERVATION_COLUMNS},
+            users.name  AS user_name,
+            users.email AS user_email,
+            ${DERIVED_STATUS_SQL} AS derived_status
        FROM reservations
        JOIN rooms ON rooms.id = reservations.room_id
-      ORDER BY reservations.start_time DESC`,
+       JOIN users ON users.id = reservations.user_id
+      ${where}
+      ORDER BY ${ORDER_BY_SQL[filters.sort](direction)}`,
+    values,
   )
 
-  return result.rows.map(toReservationWithRoom)
+  return result.rows.map((row) => ({
+    ...toReservationWithRoom(row),
+    user: { id: row.user_id, name: row.user_name, email: row.user_email },
+  }))
 }
 
 /**
