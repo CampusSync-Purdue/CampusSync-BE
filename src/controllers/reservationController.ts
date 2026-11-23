@@ -18,14 +18,15 @@ import {
 } from '../services/reservationService.js'
 
 import { validateReservationInput } from '../validation/reservationValidation.js'
+import { validateAdminReservationQuery } from '../validation/adminReservationValidation.js'
 
 import type { Request, Response } from 'express'
 
 import {
   cancelOwnReservation,
   cancelReservation,
-  getAllReservations,
   getReservationsForUser,
+  listReservationsForAdmin,
 } from '../services/reservationService.js'
 
 const UUID_PATTERN =
@@ -67,20 +68,37 @@ export async function getMyReservations(
 /**
  * GET /api/reservations
  *
- * Every reservation, for administrators.
+ * Every reservation, for administrators (CSYNC-24 / US-15). requireRole on
+ * the route enforces the role.
  *
- * Provisional: US-15 (CSYNC-24) owns the administrator reservation view
- * and will want filtering and paging.
+ * Optional query parameters, all validated:
+ * - `date`: campus-local `YYYY-MM-DD`; reservations starting that day
+ * - `roomId`: a room's UUID
+ * - `status`: `active`, `cancelled`, or `completed` (the derived status)
+ * - `sort`: `date` (default), `room`, or `status`
+ * - `order`: `asc` or `desc` (default)
+ *
+ * Responds `{ reservations: [...] }`, each with its room and reserving user.
  */
 export async function getAllReservationsForAdmin(
-  _request: Request,
+  request: Request,
   response: Response,
 ) {
+  const validation = validateAdminReservationQuery(request.query)
+
+  if (!validation.valid) {
+    response.status(HTTP_STATUS_BAD_REQUEST).json({
+      message: 'Please correct the reservation filters.',
+      errors: validation.errors,
+    })
+    return
+  }
+
   try {
-    response.status(HTTP_STATUS_OK).json(await getAllReservations())
+    const reservations = await listReservationsForAdmin(validation.value)
+    response.status(HTTP_STATUS_OK).json({ reservations })
   } catch (error) {
     console.error('Failed to load reservations for administrator', error)
-
     response.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).json({
       message: 'Unable to load reservations right now. Please try again.',
     })

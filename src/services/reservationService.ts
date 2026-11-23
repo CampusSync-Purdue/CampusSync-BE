@@ -24,7 +24,7 @@ import { isUuid } from '../validation/uuid.js'
 import {
   cancelOwnReservationById,
   cancelReservationById,
-  findAllReservations,
+  findReservationsForAdmin,
   findReservationById,
   findReservationsByUserId,
   type ReservationWithRoom,
@@ -34,7 +34,11 @@ import {
   deriveReservationTimeframe,
   isCancellable,
 } from './reservationStatus.js'
-import type { ReservationView } from '../types/reservation.js'
+import type {
+  AdminReservationView,
+  ReservationView,
+} from '../types/reservation.js'
+import type { AdminReservationQuery } from '../validation/adminReservationValidation.js'
 
 /**
  * Reservation reads (CSYNC-20 / US-11).
@@ -95,27 +99,39 @@ export type CancellationResult =
   | { ok: false; reason: CancellationFailure }
 
 /**
- * Every reservation, for the administrator view.
+ * Reservations for the administrator view (CSYNC-24 / US-15), filtered and
+ * sorted as requested, each with its room and reserving user.
  *
- * Provisional: US-15 (CSYNC-24) owns that view and will want filtering and
- * paging. Statuses are derived here too, so it cannot disagree with the user
- * view about what "completed" means.
+ * A date filter is a campus-local calendar day and matches reservations that
+ * start on it, so "Oct 21" means Oct 21 on campus whatever zone the server
+ * runs in. Statuses are derived here as everywhere else, so this view cannot
+ * disagree with My Bookings about what "completed" means.
  */
-export async function getAllReservations(
+export async function listReservationsForAdmin(
+  query: AdminReservationQuery,
   now: Date = new Date(),
-): Promise<GroupedReservations> {
-  const views = (await findAllReservations()).map((reservation) =>
-    toView(reservation, now),
+): Promise<AdminReservationView[]> {
+  const rows = await findReservationsForAdmin(
+    {
+      ...(query.date
+        ? {
+            startsFrom: zonedTimeToInstant(query.date, '00:00', CAMPUS_TIMEZONE),
+            startsBefore: zonedTimeToInstant(
+              addDays(query.date, 1),
+              '00:00',
+              CAMPUS_TIMEZONE,
+            ),
+          }
+        : {}),
+      roomId: query.roomId,
+      status: query.status,
+      sort: query.sort,
+      order: query.order,
+    },
+    now,
   )
 
-  return {
-    upcoming: views
-      .filter((view) => view.timeframe === 'upcoming')
-      .sort((a, b) => a.startTime.localeCompare(b.startTime)),
-    past: views
-      .filter((view) => view.timeframe === 'past')
-      .sort((a, b) => b.startTime.localeCompare(a.startTime)),
-  }
+  return rows.map((row) => ({ ...toView(row, now), user: row.user }))
 }
 
 /**

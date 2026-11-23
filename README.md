@@ -277,6 +277,20 @@ from the token; a `userId` or `status` in the body is ignored. Rules:
 | `404` | Room does not exist or is inactive |
 | `409` | Overlaps another reservation |
 
+`GET /api/reservations` (administrators only) returns `{ reservations }`, each
+with its `room` and reserving `user` (`id`, `name`, `email`). All query
+parameters are optional:
+
+| Parameter | Values |
+| --------- | ------ |
+| `date` | Campus-local `YYYY-MM-DD`; reservations starting that day |
+| `roomId` | A room UUID |
+| `status` | `active`, `cancelled`, or `completed` (derived, see `docs/reservation-status-model.md`) |
+| `sort` | `date` (default), `room`, or `status` |
+| `order` | `desc` (default) or `asc` |
+
+Invalid values return `400` with `errors` per field; non-administrators get `403`.
+
 ## Tests
 
 Integration tests use a separate database that they truncate between tests.

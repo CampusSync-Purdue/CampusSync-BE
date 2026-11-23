@@ -57,6 +57,18 @@ export type ReservationView = Omit<Reservation, 'status' | 'roomId'> & {
   room: ReservationRoomSummary
 }
 
+/** The reserving user, as shown to administrators. Never includes credentials or role. */
+export type ReservationUserSummary = {
+  id: string
+  name: string
+  email: string
+}
+
+/** A reservation as the administrator list returns it (US-15). */
+export type AdminReservationView = ReservationView & {
+  user: ReservationUserSummary
+}
+
 /* ---- Booking creation (CSYNC-17) ---- */
 
 /**
