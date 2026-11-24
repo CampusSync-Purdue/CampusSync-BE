@@ -16,6 +16,10 @@ import {
   createRoom,
   getActiveRoomById,
   getActiveRooms,
+  getAllRooms,
+  getRoomForAdmin,
+  editRoom,
+  deactivateRoom,
 } from '../services/roomService.js'
 import { validateNewRoom } from '../validation/roomValidation.js'
 import { findAvailableRooms } from '../services/availabilityService.js'
@@ -180,5 +184,151 @@ export async function getRoomAvailability(
     }
 
     throw error
+  }
+}
+
+
+/**
+ * GET /api/rooms/admin
+ *
+ * Returns all rooms, including inactive rooms.
+ * Administrator authorization is enforced by the route.
+ */
+export async function getAdminRooms(
+  _request: Request,
+  response: Response,
+) {
+  try {
+    const rooms = await getAllRooms()
+
+    response.status(HTTP_STATUS_OK).json(rooms)
+  } catch (error) {
+    console.error('Failed to load administrator rooms', error)
+
+    response.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).json({
+      message: 'Unable to load rooms right now. Please try again.',
+    })
+  }
+}
+
+/**
+ * GET /api/rooms/admin/:roomId
+ *
+ * Returns a room regardless of its active status.
+ */
+export async function getAdminRoomById(
+  request: Request<{ roomId: string }>,
+  response: Response,
+) {
+  try {
+    const room = await getRoomForAdmin(request.params.roomId)
+
+    if (!room) {
+      response.status(HTTP_STATUS_NOT_FOUND).json({
+        message: 'Room not found.',
+      })
+      return
+    }
+
+    response.status(HTTP_STATUS_OK).json(room)
+  } catch (error) {
+    console.error('Failed to load administrator room', error)
+
+    response.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).json({
+      message: 'Unable to load the room right now. Please try again.',
+    })
+  }
+}
+
+/**
+ * PUT /api/rooms/:roomId
+ *
+ * Updates a room's information without changing its active status.
+ * Requires administrator authorization.
+ */
+export async function putRoom(
+  request: Request<{ roomId: string }>,
+  response: Response,
+) {
+  if (!UUID_PATTERN.test(request.params.roomId)) {
+    response.status(HTTP_STATUS_NOT_FOUND).json({
+      message: 'Room not found.',
+    })
+    return
+  }
+
+  const validation = validateNewRoom(request.body)
+
+  if (!validation.valid) {
+    response.status(HTTP_STATUS_BAD_REQUEST).json({
+      message: 'Please correct the highlighted fields.',
+      errors: validation.errors,
+    })
+    return
+  }
+
+  try {
+    const room = await editRoom(
+      request.params.roomId,
+      validation.value,
+    )
+
+    if (!room) {
+      response.status(HTTP_STATUS_NOT_FOUND).json({
+        message: 'Room not found.',
+      })
+      return
+    }
+
+    response.status(HTTP_STATUS_OK).json({
+      message: 'The room has been updated.',
+      room,
+    })
+  } catch (error) {
+    console.error('Failed to update room', error)
+
+    response.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).json({
+      message: 'Unable to update the room right now. Please try again.',
+    })
+  }
+}
+
+/**
+ * POST /api/rooms/:roomId/deactivate
+ *
+ * Marks a room inactive without deleting it or its reservations.
+ * Requires administrator authorization.
+ */
+export async function postDeactivateRoom(
+  request: Request<{ roomId: string }>,
+  response: Response,
+) {
+  if (!UUID_PATTERN.test(request.params.roomId)) {
+    response.status(HTTP_STATUS_NOT_FOUND).json({
+      message: 'Room not found.',
+    })
+    return
+  }
+
+  try {
+    const room = await deactivateRoom(request.params.roomId)
+
+    if (!room) {
+      response.status(HTTP_STATUS_NOT_FOUND).json({
+        message: 'Room not found or already inactive.',
+      })
+      return
+    }
+
+    response.status(HTTP_STATUS_OK).json({
+      message: 'The room has been deactivated.',
+      room,
+    })
+  } catch (error) {
+    console.error('Failed to deactivate room', error)
+
+    response.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).json({
+      message: 'Unable to deactivate the room right now. Please try again.',
+    })
   }
 }
