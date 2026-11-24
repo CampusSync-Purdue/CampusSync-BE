@@ -15,6 +15,7 @@ type RoomRow = {
   description: string
   amenities: string[]
   availability_hours: OperatingHours
+  is_active: boolean
 }
 
 const UUID_PATTERN =
@@ -28,6 +29,11 @@ const ROOM_COLUMNS = `
   description,
   amenities,
   availability_hours
+`
+
+const ADMIN_ROOM_COLUMNS = `
+  ${ROOM_COLUMNS},
+  is_active
 `
 
 function toRoomSummary(row: RoomRow): RoomSummary {
@@ -141,4 +147,115 @@ export async function insertRoom(room: NewRoomInput): Promise<RoomSummary> {
   )
 
   return toRoomSummary(result.rows[0])
+}
+
+/** Returns active and inactive rooms for administrator management. */
+export async function findAllRooms() {
+  const result = await pool.query<RoomRow>(
+    `SELECT ${ADMIN_ROOM_COLUMNS}
+       FROM rooms
+      ORDER BY name`,
+  )
+
+  return result.rows.map((row) => ({
+    ...toRoomSummary(row),
+    isActive: row.is_active,
+  }))
+}
+
+/** Finds a room regardless of whether it is active. */
+export async function findRoomById(roomId: string) {
+  if (!UUID_PATTERN.test(roomId)) {
+    return null
+  }
+
+  const result = await pool.query<RoomRow>(
+    `SELECT ${ADMIN_ROOM_COLUMNS}
+       FROM rooms
+      WHERE id = $1`,
+    [roomId],
+  )
+
+  const row = result.rows[0]
+
+  return row
+    ? {
+        ...toRoomSummary(row),
+        isActive: row.is_active,
+      }
+    : null
+}
+
+
+/**
+ * Updates a room's details without changing its active status.
+ * Returns null if the room does not exist.
+ */
+export async function updateRoom(
+  roomId: string,
+  room: NewRoomInput,
+) {
+  if (!UUID_PATTERN.test(roomId)) {
+    return null
+  }
+
+  const result = await pool.query<RoomRow>(
+    `UPDATE rooms
+        SET name = $2,
+            location = $3,
+            capacity = $4,
+            description = $5,
+            amenities = $6,
+            availability_hours = $7::jsonb,
+            updated_at = NOW()
+      WHERE id = $1
+      RETURNING ${ADMIN_ROOM_COLUMNS}`,
+    [
+      roomId,
+      room.name,
+      room.location,
+      room.capacity,
+      room.description,
+      room.amenities,
+      JSON.stringify(room.availabilityHours),
+    ],
+  )
+
+  const row = result.rows[0]
+
+  return row
+    ? {
+        ...toRoomSummary(row),
+        isActive: row.is_active,
+      }
+    : null
+}
+
+/**
+ * Deactivates a room without deleting it.
+ * Existing reservations remain associated with the room.
+ */
+export async function deactivateRoom(roomId: string) {
+  if (!UUID_PATTERN.test(roomId)) {
+    return null
+  }
+
+  const result = await pool.query<RoomRow>(
+    `UPDATE rooms
+        SET is_active = FALSE,
+            updated_at = NOW()
+      WHERE id = $1
+        AND is_active = TRUE
+      RETURNING ${ADMIN_ROOM_COLUMNS}`,
+    [roomId],
+  )
+
+  const row = result.rows[0]
+
+  return row
+    ? {
+        ...toRoomSummary(row),
+        isActive: row.is_active,
+      }
+    : null
 }

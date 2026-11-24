@@ -14,7 +14,7 @@ app.use(requestLogger)
 app.use(
   cors({
     origin: getAllowedOrigins(),
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'PUT'],
   }),
 )
 
