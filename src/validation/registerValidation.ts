@@ -29,6 +29,44 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+/**
+ * Validates a password using CampusSync's registration requirements.
+ *
+ * Reused by:
+ * - User registration
+ * - CSYNC-29 password reset
+ *
+ * Returns undefined when the password is valid.
+ * Otherwise, returns a validation error message.
+ */
+export function validatePassword(password: unknown): string | undefined {
+  if (typeof password !== "string" || password.length === 0) {
+    return "Password is required.";
+  }
+
+  if (password.length < PASSWORD_MIN_LENGTH) {
+    return `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`;
+  }
+
+  if (password.length > PASSWORD_MAX_LENGTH) {
+    return `Password must be ${PASSWORD_MAX_LENGTH} characters or fewer.`;
+  }
+
+  if (!/[a-z]/.test(password)) {
+    return "Password must include a lowercase letter.";
+  }
+
+  if (!/[A-Z]/.test(password)) {
+    return "Password must include an uppercase letter.";
+  }
+
+  if (!/[0-9]/.test(password)) {
+    return "Password must include a number.";
+  }
+
+  return undefined;
+}
+
 export function validateRegisterInput(body: unknown): ValidationResult {
   const errors: FieldErrors = {};
   const input = (body ?? {}) as Record<string, unknown>;
@@ -53,18 +91,11 @@ export function validateRegisterInput(body: unknown): ValidationResult {
     errors.email = "Enter a valid email address.";
   }
 
-  if (typeof rawPassword !== "string" || rawPassword.length === 0) {
-    errors.password = "Password is required.";
-  } else if (rawPassword.length < PASSWORD_MIN_LENGTH) {
-    errors.password = `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`;
-  } else if (rawPassword.length > PASSWORD_MAX_LENGTH) {
-    errors.password = `Password must be ${PASSWORD_MAX_LENGTH} characters or fewer.`;
-  } else if (!/[a-z]/.test(rawPassword)) {
-    errors.password = "Password must include a lowercase letter.";
-  } else if (!/[A-Z]/.test(rawPassword)) {
-    errors.password = "Password must include an uppercase letter.";
-  } else if (!/[0-9]/.test(rawPassword)) {
-    errors.password = "Password must include a number.";
+  // Reuse the same password policy for registration and password reset.
+  const passwordError = validatePassword(rawPassword);
+
+  if (passwordError) {
+    errors.password = passwordError;
   }
 
   if (Object.keys(errors).length > 0) {
