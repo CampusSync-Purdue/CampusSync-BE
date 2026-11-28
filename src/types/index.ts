@@ -12,6 +12,15 @@ export interface AuthTokenPayload {
   email: string
   name: string
   role: UserRole
+
+  /**
+   * CSYNC-29:
+   * Session version at the time the JWT was issued.
+   *
+   * Optional for backward compatibility with existing tokens
+   * and the project's authentication test helpers.
+   */
+  sessionVersion?: number
 }
 
 export interface AuthResponse {

@@ -243,6 +243,220 @@ Users are stored in the Postgres `users` table by
 all read that table, so a newly registered account can sign in, and the JWT
 `id` is the user's database UUID.
 
+## Forgot password and reset password (CSYNC-29)
+
+CSYNC-29 / US-20 allows registered users to reset a forgotten password
+without administrator assistance.
+
+The password-reset flow consists of two public endpoints:
+
+1. Request a password-reset email.
+2. Submit a new password using the token received by email.
+
+### Request a password reset
+
+**Endpoint:** `POST /api/auth/forgot-password`
+
+**Authentication:** Not required.
+
+Example request:
+
+```http
+POST /api/auth/forgot-password
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "student@example.edu"
+}
+```
+
+For a valid email address, the endpoint returns HTTP `200` with a neutral
+confirmation message, regardless of whether an account exists.
+
+This prevents the response message from revealing registered email
+addresses.
+
+Malformed or missing email addresses return HTTP `400`.
+
+### Complete a password reset
+
+**Endpoint:** `POST /api/auth/reset-password`
+
+**Authentication:** Not required.
+
+Example request:
+
+```http
+POST /api/auth/reset-password
+Content-Type: application/json
+```
+
+```json
+{
+  "token": "token-received-in-reset-email",
+  "newPassword": "NewPassword123",
+  "confirmPassword": "NewPassword123"
+}
+```
+
+A successful reset returns HTTP `200`.
+
+The endpoint rejects:
+
+- Invalid or unknown reset tokens.
+- Expired reset tokens.
+- Previously used reset tokens.
+- Passwords that do not meet registration requirements.
+- Passwords that do not match the confirmation field.
+
+Invalid requests return HTTP `400`.
+
+### Password requirements
+
+New passwords must meet the same requirements as registration:
+
+- Between 8 and 128 characters.
+- At least one lowercase letter.
+- At least one uppercase letter.
+- At least one number.
+
+### Reset-token security
+
+Password-reset tokens are generated using cryptographically secure
+randomness.
+
+Security measures include:
+
+- Each token contains 32 random bytes, represented as 64 hexadecimal characters.
+- Only the SHA-256 hash of the token is stored in PostgreSQL.
+- Tokens expire after 30 minutes.
+- Tokens can be used only once.
+- Other unused reset tokens are invalidated after a successful reset.
+- Passwords are hashed using bcrypt before storage.
+- Password changes and token consumption occur in a database transaction.
+- Concurrent reset attempts for the same account are serialized.
+- Successful password resets increment the user's session version,
+  invalidating previously issued JWT sessions.
+
+The endpoints also use IP-based rate limiting:
+
+| Endpoint | Limit |
+|---|---|
+| `/api/auth/forgot-password` | 5 requests per 15 minutes |
+| `/api/auth/reset-password` | 10 requests per 15 minutes |
+
+The current rate-limit storage is in memory. A shared rate-limit store
+should be configured if the API is deployed across multiple instances.
+
+### Email configuration
+
+Password-reset emails are sent using Nodemailer and SMTP.
+
+The following environment variables are supported:
+
+| Variable | Description |
+|---|---|
+| `PASSWORD_RESET_URL` | Frontend password-reset page URL |
+| `SMTP_HOST` | SMTP server hostname |
+| `SMTP_PORT` | SMTP server port (typically 587 or 465) |
+| `SMTP_USER` | SMTP authentication username |
+| `SMTP_PASS` | SMTP authentication password |
+| `SMTP_FROM` | Sender email address |
+
+For local development:
+
+```env
+PASSWORD_RESET_URL=http://localhost:5173/reset-password
+```
+
+SMTP credentials must be configured separately in the local `.env`
+file or deployment environment.
+
+Never commit real credentials to Git.
+
+SMTP transport security:
+
+- Port 465 uses TLS immediately.
+- Other ports require STARTTLS.
+- Unencrypted SMTP delivery is not allowed.
+
+The selected email provider must be configured before real
+password-reset emails can be delivered.
+
+The frontend must implement the `/reset-password` page to complete
+the user-facing flow.
+
+### Database migrations
+
+CSYNC-29 introduces:
+
+- A `password_reset_tokens` table.
+- A `session_version` column on the `users` table.
+
+The migrations are:
+
+- `drizzle/0002_happy_madrox.sql`
+- `drizzle/0003_cloudy_mattie_franklin.sql`
+
+Apply migrations with:
+
+```bash
+npm run db:migrate
+```
+
+Run migrations only against the intended database.
+
+Existing databases with tables created outside Drizzle's migration
+history may require migration-history reconciliation before running
+this command.
+
+### Testing
+
+The password-reset implementation includes tests for:
+
+- Secure token generation and hashing.
+- Token expiration.
+- Neutral responses for unknown email addresses.
+- Password validation and confirmation.
+- Successful password changes.
+- Rejection of expired, invalid, and reused tokens.
+- Invalidation of previous login sessions.
+- Concurrent attempts to redeem the same token.
+- Concurrent attempts using different valid tokens.
+
+Build the backend:
+
+```bash
+npm run build
+```
+
+Run the complete test suite:
+
+```bash
+npm test
+```
+
+**Important:** Configure `TEST_DATABASE_URL` to point to a separate
+PostgreSQL database whose name ends in `_test` before running tests.
+
+The test suite can remove test database records. Never point
+`TEST_DATABASE_URL` at a development or production database.
+
+### Deployment considerations
+
+Before deploying this feature:
+
+1. Configure a trusted SMTP provider and sender address.
+2. Configure `PASSWORD_RESET_URL` with the deployed HTTPS frontend URL.
+3. Verify that reset emails are delivered successfully.
+4. Ensure the frontend implements the request and reset forms.
+5. Verify that unknown and registered email requests do not expose
+   account existence through response content or timing.
+6. Confirm that the database migrations are applied.
+7. Run the complete backend test suite.
+
 ## Rooms and reservations
 
 Seed the demo rooms (fixed ids, open 08:00–20:00 every day; safe to re-run):
